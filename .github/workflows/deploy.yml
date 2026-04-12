@@ -14,10 +14,15 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Prepare dist
+        run: |
+          mkdir -p dist
+          cp mg-tool.html dist/index.html
+
       - name: Deploy to Cloudflare Pages
         uses: cloudflare/wrangler-action@v3
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          command: pages deploy . --project-name=mg-animation-tool --commit-dirty=true
+          command: pages deploy dist --project-name=mg-animation-tool --commit-dirty=true
           gitHubToken: ${{ secrets.GITHUB_TOKEN }}
