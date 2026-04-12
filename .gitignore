@@ -5,7 +5,6 @@
 
 # 只允许以下文件进入版本控制
 !.gitignore
-!wrangler.toml
 !mg-tool.html
 !mg-proxy.py
 !mg-worker.py
