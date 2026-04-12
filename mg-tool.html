@@ -1,0 +1,3607 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>MG 动效生成工具</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;}
+:root{
+  --bg:#0F0F1A;
+  --surface:#16162A;
+  --surface2:#1E1E35;
+  --border:rgba(255,255,255,0.08);
+  --border2:rgba(255,255,255,0.14);
+  --text:#E4E4F0;
+  --text2:rgba(255,255,255,0.45);
+  --text3:rgba(255,255,255,0.25);
+  --accent:#7C6EFA;
+  --accent2:#A78BFA;
+  --orange:#FF6B35;
+  --pink:#FF4B6E;
+  --green:#34D399;
+  --radius:12px;
+}
+body{
+  background:var(--bg);
+  color:var(--text);
+  font-family:-apple-system,BlinkMacSystemFont,'PingFang SC','Helvetica Neue',sans-serif;
+  min-height:100vh;
+  display:flex;
+  flex-direction:column;
+}
+
+/* ── 顶栏 ── */
+.topbar{
+  height:56px;
+  background:rgba(15,15,26,0.9);
+  backdrop-filter:blur(12px);
+  border-bottom:1px solid var(--border);
+  display:flex;
+  align-items:center;
+  padding:0 24px;
+  gap:12px;
+  position:sticky;
+  top:0;
+  z-index:100;
+}
+.logo{
+  display:flex;
+  align-items:center;
+  gap:8px;
+  font-size:15px;
+  font-weight:700;
+  color:var(--text);
+  letter-spacing:0.3px;
+}
+.logo-icon{
+  width:28px;height:28px;
+  background:linear-gradient(135deg,var(--accent),var(--pink));
+  border-radius:8px;
+  display:flex;align-items:center;justify-content:center;
+  font-size:14px;
+}
+.topbar-sep{flex:1;}
+.topbar-btn{
+  height:32px;
+  padding:0 14px;
+  border-radius:8px;
+  border:1px solid var(--border2);
+  background:transparent;
+  color:var(--text2);
+  font-size:12px;
+  cursor:pointer;
+  transition:all .15s;
+  display:flex;align-items:center;gap:6px;
+}
+.topbar-btn:hover{background:var(--surface2);color:var(--text);}
+.topbar-btn.primary{
+  background:var(--accent);
+  border-color:var(--accent);
+  color:#fff;
+  font-weight:600;
+}
+.topbar-btn.primary:hover{background:var(--accent2);border-color:var(--accent2);}
+
+/* ── 主布局 ── */
+.main{
+  display:grid;
+  grid-template-columns:320px 1fr 280px;
+  flex:1;
+  overflow:hidden;
+  height:calc(100vh - 56px);
+}
+
+/* ── 左侧面板 ── */
+.panel-left{
+  border-right:1px solid var(--border);
+  overflow-y:auto;
+  padding:20px 16px;
+  display:flex;
+  flex-direction:column;
+  gap:20px;
+}
+.panel-left::-webkit-scrollbar{width:4px;}
+.panel-left::-webkit-scrollbar-track{background:transparent;}
+.panel-left::-webkit-scrollbar-thumb{background:rgba(255,255,255,0.1);border-radius:2px;}
+
+/* ── 中间预览区 ── */
+.panel-center{
+  display:flex;
+  flex-direction:column;
+  overflow:hidden;
+}
+.preview-toolbar{
+  height:48px;
+  border-bottom:1px solid var(--border);
+  display:flex;
+  align-items:center;
+  padding:0 20px;
+  gap:12px;
+  flex-shrink:0;
+}
+.preview-area{
+  flex:1;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  position:relative;
+  overflow:hidden;
+  background:
+    radial-gradient(ellipse at 30% 20%, rgba(124,110,250,0.08) 0%, transparent 60%),
+    radial-gradient(ellipse at 70% 80%, rgba(255,75,110,0.06) 0%, transparent 60%),
+    var(--bg);
+}
+.preview-grid{
+  position:absolute;inset:0;
+  background-image:
+    linear-gradient(rgba(255,255,255,0.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255,255,255,0.03) 1px, transparent 1px);
+  background-size:40px 40px;
+  pointer-events:none;
+}
+.preview-canvas{
+  width:375px;
+  height:480px;
+  background:rgba(255,255,255,0.03);
+  border:1px solid var(--border2);
+  border-radius:16px;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  position:relative;
+  overflow:hidden;
+}
+.preview-empty{
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  gap:12px;
+  color:var(--text3);
+}
+.preview-empty-icon{
+  width:56px;height:56px;
+  border:1.5px dashed rgba(255,255,255,0.15);
+  border-radius:14px;
+  display:flex;align-items:center;justify-content:center;
+  font-size:22px;
+}
+.preview-empty p{font-size:13px;line-height:1.6;text-align:center;}
+
+/* 预览中的动效演示 */
+.demo-ball{
+  width:60px;height:60px;
+  border-radius:50%;
+  background:radial-gradient(circle at 35% 35%,#FF9A6C,#FF6B35 60%,#CC4A1A);
+  box-shadow:0 4px 20px rgba(255,107,53,0.5);
+  animation:demo-bounce 1.1s cubic-bezier(0.55,0,0.45,1) infinite;
+  transform-origin:center bottom;
+  display:none;
+}
+@keyframes demo-bounce{
+  0%  {transform:translateY(-160px) scaleX(1) scaleY(1);animation-timing-function:cubic-bezier(0.55,0,1,0.45);}
+  36% {transform:translateY(0) scaleX(1) scaleY(1);animation-timing-function:linear;}
+  43% {transform:translateY(0) scaleX(1.3) scaleY(0.6);animation-timing-function:cubic-bezier(0,0.55,0.45,1);}
+  100%{transform:translateY(-160px) scaleX(1) scaleY(1);}
+}
+.demo-heart-wrap{
+  display:none;
+  flex-direction:column;
+  align-items:center;
+  gap:8px;
+}
+.demo-heart{
+  cursor:pointer;
+  display:flex;align-items:center;gap:8px;
+  padding:8px 14px;
+  border-radius:20px;
+  transition:background .15s;
+}
+.demo-heart:hover{background:rgba(255,255,255,0.05);}
+.demo-heart svg .hp{fill:none;stroke:rgba(255,255,255,0.5);stroke-width:2;stroke-linejoin:round;transition:all .15s;}
+.demo-heart.liked svg .hp{fill:#FF4B6E;stroke:#FF4B6E;}
+.demo-heart-count{font-size:14px;color:rgba(255,255,255,0.5);font-weight:500;}
+.demo-heart.liked .demo-heart-count{color:#FF4B6E;}
+
+/* ── 右侧面板 ── */
+.panel-right{
+  border-left:1px solid var(--border);
+  overflow-y:auto;
+  padding:20px 16px;
+  display:flex;
+  flex-direction:column;
+  gap:16px;
+}
+.panel-right::-webkit-scrollbar{width:4px;}
+.panel-right::-webkit-scrollbar-track{background:transparent;}
+.panel-right::-webkit-scrollbar-thumb{background:rgba(255,255,255,0.1);border-radius:2px;}
+
+/* ── 通用组件 ── */
+.section-title{
+  font-size:11px;
+  font-weight:600;
+  color:var(--text3);
+  letter-spacing:1.5px;
+  text-transform:uppercase;
+  margin-bottom:10px;
+}
+
+.card{
+  background:var(--surface);
+  border:1px solid var(--border);
+  border-radius:var(--radius);
+  overflow:hidden;
+}
+
+.field{
+  display:flex;
+  flex-direction:column;
+  gap:6px;
+}
+.field label{
+  font-size:12px;
+  color:var(--text2);
+  font-weight:500;
+}
+
+/* 上传区 */
+.upload-zone{
+  border:1.5px dashed rgba(255,255,255,0.15);
+  border-radius:10px;
+  padding:24px 16px;
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  gap:8px;
+  cursor:pointer;
+  transition:all .2s;
+  background:rgba(255,255,255,0.02);
+  position:relative;
+}
+.upload-zone:hover{
+  border-color:var(--accent);
+  background:rgba(124,110,250,0.06);
+}
+.upload-zone input{position:absolute;inset:0;opacity:0;cursor:pointer;}
+.upload-icon{
+  width:40px;height:40px;
+  border-radius:10px;
+  background:rgba(124,110,250,0.12);
+  display:flex;align-items:center;justify-content:center;
+  font-size:18px;
+}
+.upload-zone p{font-size:12px;color:var(--text2);text-align:center;line-height:1.6;}
+.upload-zone span{font-size:11px;color:var(--text3);}
+
+/* 上传预览 */
+.upload-preview{
+  display:none;
+  border-radius:10px;
+  overflow:hidden;
+  position:relative;
+  background:var(--surface2);
+}
+.upload-preview img{width:100%;display:block;max-height:160px;object-fit:cover;}
+.upload-preview-bar{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:8px 12px;
+  background:rgba(0,0,0,0.3);
+}
+.upload-preview-name{font-size:11px;color:var(--text2);}
+.upload-preview-del{
+  width:20px;height:20px;
+  border-radius:4px;
+  background:rgba(255,75,110,0.15);
+  border:none;
+  color:#FF4B6E;
+  font-size:12px;
+  cursor:pointer;
+  display:flex;align-items:center;justify-content:center;
+}
+
+/* textarea */
+textarea{
+  background:var(--surface2);
+  border:1px solid var(--border);
+  border-radius:8px;
+  color:var(--text);
+  font-size:13px;
+  font-family:inherit;
+  padding:10px 12px;
+  resize:none;
+  line-height:1.6;
+  transition:border-color .15s;
+  width:100%;
+}
+textarea:focus{outline:none;border-color:var(--accent);}
+textarea::placeholder{color:var(--text3);}
+
+/* input */
+input[type=text],input[type=number]{
+  background:var(--surface2);
+  border:1px solid var(--border);
+  border-radius:8px;
+  color:var(--text);
+  font-size:13px;
+  font-family:inherit;
+  padding:8px 12px;
+  width:100%;
+  transition:border-color .15s;
+}
+input[type=text]:focus,input[type=number]:focus{outline:none;border-color:var(--accent);}
+input::placeholder{color:var(--text3);}
+
+/* 时长滑块 */
+.duration-row{
+  display:flex;align-items:center;gap:10px;
+}
+.duration-row input[type=range]{
+  flex:1;
+  -webkit-appearance:none;
+  height:4px;
+  border-radius:2px;
+  background:var(--surface2);
+  outline:none;
+  cursor:pointer;
+}
+.duration-row input[type=range]::-webkit-slider-thumb{
+  -webkit-appearance:none;
+  width:16px;height:16px;
+  border-radius:50%;
+  background:var(--accent);
+  cursor:pointer;
+  box-shadow:0 0 0 3px rgba(124,110,250,0.2);
+}
+.duration-val{
+  font-size:13px;
+  font-weight:600;
+  color:var(--accent2);
+  min-width:36px;
+  text-align:right;
+}
+
+/* 输出格式选择 */
+.format-grid{
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:8px;
+}
+.format-item{
+  border:1.5px solid var(--border);
+  border-radius:8px;
+  padding:10px 12px;
+  cursor:pointer;
+  transition:all .15s;
+  display:flex;
+  flex-direction:column;
+  gap:4px;
+  position:relative;
+}
+.format-item:hover{border-color:var(--border2);background:var(--surface2);}
+.format-item.selected{
+  border-color:var(--accent);
+  background:rgba(124,110,250,0.08);
+}
+.format-item input{position:absolute;opacity:0;pointer-events:none;}
+.format-icon{font-size:16px;}
+.format-name{font-size:12px;font-weight:600;color:var(--text);}
+.format-desc{font-size:11px;color:var(--text3);}
+.format-check{
+  position:absolute;top:8px;right:8px;
+  width:16px;height:16px;
+  border-radius:50%;
+  border:1.5px solid var(--border2);
+  display:flex;align-items:center;justify-content:center;
+  transition:all .15s;
+}
+.format-item.selected .format-check{
+  background:var(--accent);
+  border-color:var(--accent);
+}
+.format-item.selected .format-check::after{
+  content:'';
+  width:6px;height:6px;
+  border-radius:50%;
+  background:#fff;
+}
+
+/* 风格标签 */
+.style-tags{
+  display:flex;flex-wrap:wrap;gap:6px;
+}
+.style-tag{
+  padding:4px 10px;
+  border-radius:20px;
+  border:1px solid var(--border);
+  font-size:11px;
+  color:var(--text2);
+  cursor:pointer;
+  transition:all .15s;
+  background:transparent;
+}
+.style-tag:hover{border-color:var(--border2);color:var(--text);}
+.style-tag.active{
+  background:rgba(124,110,250,0.12);
+  border-color:var(--accent);
+  color:var(--accent2);
+}
+
+/* 生成按钮 */
+.generate-btn{
+  width:100%;
+  height:44px;
+  border-radius:10px;
+  border:none;
+  background:linear-gradient(135deg,var(--accent),#9B6EFA);
+  color:#fff;
+  font-size:14px;
+  font-weight:700;
+  cursor:pointer;
+  display:flex;align-items:center;justify-content:center;gap:8px;
+  transition:all .2s;
+  letter-spacing:0.3px;
+  position:relative;
+  overflow:hidden;
+}
+.generate-btn::before{
+  content:'';
+  position:absolute;inset:0;
+  background:linear-gradient(135deg,rgba(255,255,255,0.1),transparent);
+  opacity:0;
+  transition:opacity .2s;
+}
+.generate-btn:hover::before{opacity:1;}
+.generate-btn:hover{transform:translateY(-1px);box-shadow:0 8px 24px rgba(124,110,250,0.4);}
+.generate-btn:active{transform:translateY(0);}
+.generate-btn.loading{pointer-events:none;}
+.generate-btn .btn-spinner{
+  width:16px;height:16px;
+  border:2px solid rgba(255,255,255,0.3);
+  border-top-color:#fff;
+  border-radius:50%;
+  animation:spin .6s linear infinite;
+  display:none;
+}
+@keyframes spin{to{transform:rotate(360deg);}}
+
+/* 进度条 */
+.progress-wrap{
+  display:none;
+  flex-direction:column;
+  gap:8px;
+}
+.progress-bar-bg{
+  height:4px;
+  background:var(--surface2);
+  border-radius:2px;
+  overflow:hidden;
+}
+.progress-bar-fill{
+  height:100%;
+  background:linear-gradient(90deg,var(--accent),var(--accent2));
+  border-radius:2px;
+  width:0%;
+  transition:width .3s ease;
+}
+.progress-text{font-size:11px;color:var(--text3);}
+
+/* 输出结果 */
+.output-card{
+  display:none;
+  background:var(--surface);
+  border:1px solid var(--border);
+  border-radius:var(--radius);
+  overflow:hidden;
+}
+.output-header{
+  padding:12px 16px;
+  border-bottom:1px solid var(--border);
+  display:flex;align-items:center;justify-content:space-between;
+}
+.output-title{font-size:12px;font-weight:600;color:var(--text2);}
+.output-actions{display:flex;gap:6px;}
+.output-btn{
+  height:26px;
+  padding:0 10px;
+  border-radius:6px;
+  border:1px solid var(--border2);
+  background:transparent;
+  color:var(--text2);
+  font-size:11px;
+  cursor:pointer;
+  transition:all .15s;
+}
+.output-btn:hover{background:var(--surface2);color:var(--text);}
+.output-btn.dl{background:rgba(52,211,153,0.1);border-color:rgba(52,211,153,0.3);color:var(--green);}
+.output-code{
+  padding:16px;
+  font-family:'JetBrains Mono','Fira Code',Menlo,monospace;
+  font-size:11.5px;
+  line-height:1.75;
+  color:#CDD6F4;
+  overflow-x:auto;
+  max-height:240px;
+  overflow-y:auto;
+}
+.output-code::-webkit-scrollbar{width:4px;height:4px;}
+.output-code::-webkit-scrollbar-thumb{background:rgba(255,255,255,0.1);border-radius:2px;}
+.kw{color:#CBA6F7;}.fn{color:#89B4FA;}.str{color:#A6E3A1;}.num{color:#FAB387;}.cmt{color:#6C7086;font-style:italic;}.cls{color:#F38BA8;}.prop{color:#89DCEB;}.pun{color:#9399B2;}
+
+/* ── 素材库 ── */
+.library-section{
+  padding:20px 24px;
+  border-top:1px solid var(--border);
+  background:var(--surface);
+}
+.library-header{
+  display:flex;align-items:center;justify-content:space-between;
+  margin-bottom:16px;
+}
+.library-title{
+  font-size:13px;font-weight:600;color:var(--text);
+  display:flex;align-items:center;gap:8px;
+}
+.library-badge{
+  font-size:10px;
+  background:rgba(124,110,250,0.15);
+  color:var(--accent2);
+  padding:2px 7px;
+  border-radius:10px;
+  font-weight:600;
+}
+.library-tabs{
+  display:flex;gap:4px;
+}
+.lib-tab{
+  padding:4px 12px;
+  border-radius:6px;
+  font-size:12px;
+  color:var(--text2);
+  cursor:pointer;
+  border:none;
+  background:transparent;
+  transition:all .15s;
+}
+.lib-tab.active{background:var(--surface2);color:var(--text);}
+.library-grid{
+  display:grid;
+  grid-template-columns:repeat(auto-fill,minmax(140px,1fr));
+  gap:10px;
+}
+.lib-item{
+  background:var(--surface2);
+  border:1px solid var(--border);
+  border-radius:10px;
+  overflow:hidden;
+  cursor:pointer;
+  transition:all .2s;
+  position:relative;
+}
+.lib-item:hover{border-color:var(--accent);transform:translateY(-2px);box-shadow:0 8px 24px rgba(0,0,0,0.3);}
+.lib-item-preview{
+  height:90px;
+  display:flex;align-items:center;justify-content:center;
+  position:relative;
+  overflow:hidden;
+}
+.lib-item-info{
+  padding:8px 10px;
+  border-top:1px solid var(--border);
+}
+.lib-item-name{font-size:11px;font-weight:600;color:var(--text);margin-bottom:2px;}
+.lib-item-meta{font-size:10px;color:var(--text3);}
+.lib-item-tag{
+  position:absolute;top:6px;right:6px;
+  font-size:9px;
+  padding:2px 6px;
+  border-radius:4px;
+  font-weight:600;
+}
+.tag-js{background:rgba(124,110,250,0.2);color:var(--accent2);}
+.tag-css{background:rgba(52,211,153,0.15);color:var(--green);}
+.tag-new{background:rgba(255,107,53,0.2);color:var(--orange);}
+
+/* 素材库小动效 */
+.mini-ball{
+  width:32px;height:32px;border-radius:50%;
+  background:radial-gradient(circle at 35% 35%,#FF9A6C,#FF6B35);
+  animation:demo-bounce 1.1s cubic-bezier(0.55,0,0.45,1) infinite;
+  transform-origin:center bottom;
+}
+.mini-heart-wrap{display:flex;align-items:center;gap:6px;}
+.mini-heart{
+  width:28px;height:28px;
+  cursor:pointer;
+}
+.mini-heart .hp{fill:none;stroke:rgba(255,255,255,0.5);stroke-width:2;stroke-linejoin:round;}
+.mini-badge{
+  width:60px;height:60px;border-radius:50%;
+  background:radial-gradient(circle at 40% 35%,#fff8f5 0%,#ffb347 30%,#ff6a00 70%,#e8450a 100%);
+  box-shadow:0 4px 16px rgba(255,106,0,0.4);
+  animation:badge-mini-spin 3s ease-in-out infinite;
+}
+@keyframes badge-mini-spin{
+  0%{transform:rotateY(-15deg);}50%{transform:rotateY(15deg);}100%{transform:rotateY(-15deg);}
+}
+.mini-loading{
+  width:32px;height:32px;border-radius:50%;
+  border:3px solid rgba(124,110,250,0.2);
+  border-top-color:var(--accent);
+  animation:spin .8s linear infinite;
+}
+.mini-ripple{
+  width:40px;height:40px;border-radius:50%;
+  background:rgba(52,211,153,0.2);
+  animation:ripple 1.2s ease-out infinite;
+}
+@keyframes ripple{
+  0%{transform:scale(0.5);opacity:1;}
+  100%{transform:scale(1.8);opacity:0;}
+}
+.mini-pulse{
+  width:36px;height:36px;border-radius:8px;
+  background:linear-gradient(135deg,var(--accent),var(--pink));
+  animation:pulse-anim 1.4s ease-in-out infinite;
+}
+@keyframes pulse-anim{
+  0%,100%{transform:scale(1);opacity:1;}
+  50%{transform:scale(0.85);opacity:0.7;}
+}
+
+/* 预览工具栏按钮 */
+.tb-btn{
+  height:30px;
+  padding:0 12px;
+  border-radius:6px;
+  border:1px solid var(--border);
+  background:transparent;
+  color:var(--text2);
+  font-size:12px;
+  cursor:pointer;
+  transition:all .15s;
+  display:flex;align-items:center;gap:5px;
+}
+.tb-btn:hover{background:var(--surface2);color:var(--text);}
+.tb-btn.active{background:var(--surface2);color:var(--text);border-color:var(--border2);}
+.tb-sep{width:1px;height:20px;background:var(--border);margin:0 4px;}
+.tb-label{font-size:11px;color:var(--text3);margin-right:4px;}
+
+/* 状态指示 */
+.status-dot{
+  width:6px;height:6px;border-radius:50%;
+  background:var(--green);
+  box-shadow:0 0 6px var(--green);
+  animation:blink 2s ease-in-out infinite;
+}
+@keyframes blink{0%,100%{opacity:1;}50%{opacity:0.3;}}
+
+/* 历史记录 */
+.history-item{
+  display:flex;align-items:center;gap:10px;
+  padding:8px 10px;
+  border-radius:8px;
+  cursor:pointer;
+  transition:background .15s;
+}
+.history-item:hover{background:var(--surface2);}
+.history-thumb{
+  width:36px;height:36px;border-radius:8px;
+  background:var(--surface2);
+  border:1px solid var(--border);
+  display:flex;align-items:center;justify-content:center;
+  font-size:14px;
+  flex-shrink:0;
+}
+.history-info{flex:1;min-width:0;}
+.history-name{font-size:12px;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.history-time{font-size:10px;color:var(--text3);margin-top:2px;}
+.history-badge{
+  font-size:9px;padding:2px 6px;border-radius:4px;font-weight:600;flex-shrink:0;
+}
+
+/* 参数面板 */
+.param-row{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:6px 0;
+}
+.param-label{font-size:12px;color:var(--text2);}
+.param-val{
+  font-size:12px;font-weight:600;color:var(--accent2);
+  background:rgba(124,110,250,0.1);
+  padding:2px 8px;border-radius:4px;
+}
+.param-divider{height:1px;background:var(--border);margin:4px 0;}
+
+/* 响应式 */
+@media(max-width:1100px){
+  .main{grid-template-columns:280px 1fr 240px;}
+}
+
+/* ── 预览区场景动效 ── */
+@keyframes preview-bounce {
+  0%   { transform:translateX(-50%) translateY(-200px) scaleX(1)   scaleY(1);   animation-timing-function:cubic-bezier(0.55,0,1,0.45); }
+  36%  { transform:translateX(-50%) translateY(0px)    scaleX(1)   scaleY(1);   animation-timing-function:linear; }
+  43%  { transform:translateX(-50%) translateY(0px)    scaleX(1.3) scaleY(0.6); animation-timing-function:cubic-bezier(0,0.55,0.45,1); }
+  100% { transform:translateX(-50%) translateY(-200px) scaleX(1)   scaleY(1);   animation-timing-function:cubic-bezier(0.55,0,1,0.45); }
+}
+@keyframes preview-shadow {
+  0%   { transform:translateX(-50%) scaleX(0.3); opacity:0.2; animation-timing-function:cubic-bezier(0.55,0,1,0.45); }
+  36%  { transform:translateX(-50%) scaleX(1);   opacity:1;   animation-timing-function:linear; }
+  43%  { transform:translateX(-50%) scaleX(1.3); opacity:1;   animation-timing-function:cubic-bezier(0,0.55,0.45,1); }
+  100% { transform:translateX(-50%) scaleX(0.3); opacity:0.2; animation-timing-function:cubic-bezier(0.55,0,1,0.45); }
+}
+@keyframes pv-sheen-idle {
+  0%   { left:-90%; opacity:0; }
+  10%  { opacity:1; }
+  45%  { left:130%; opacity:1; }
+  46%  { opacity:0; }
+  100% { left:130%; opacity:0; }
+}
+</style>
+</head>
+<body>
+
+<!-- 顶栏 -->
+<header class="topbar">
+  <div class="logo">
+    <div class="logo-icon">✦</div>
+    MG 动效生成工具
+  </div>
+  <div style="width:1px;height:20px;background:var(--border);margin:0 8px;"></div>
+  <span style="font-size:12px;color:var(--text3);">Beta</span>
+  <div class="topbar-sep"></div>
+  <div class="status-dot"></div>
+  <span style="font-size:12px;color:var(--text3);margin-left:6px;">Picasso 引擎已就绪</span>
+  <div style="width:1px;height:20px;background:var(--border);margin:0 12px;"></div>
+  <div id="aiEngineStatus" style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--text3);">
+    <span id="aiStatusDot" style="width:6px;height:6px;border-radius:50%;background:var(--text3);display:inline-block;"></span>
+    <span id="aiStatusText">检测 AI 引擎…</span>
+  </div>
+  <button class="topbar-btn" onclick="openHistory()">
+    <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M6 1v5l3 2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><circle cx="6" cy="6" r="5" stroke="currentColor" stroke-width="1.5"/></svg>
+    历史记录
+  </button>
+  <button class="topbar-btn primary" onclick="triggerGenerate()">
+    <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M2 6h8M7 3l3 3-3 3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    生成动效
+  </button>
+</header>
+
+
+<!-- 主区域 -->
+<div class="main">
+
+  <!-- 左侧：输入配置 -->
+  <aside class="panel-left">
+
+    <!-- 草稿上传 -->
+    <div>
+      <div class="section-title">静态草稿</div>
+      <div class="upload-zone" id="uploadZone" onclick="document.getElementById('fileInput').click()">
+        <input type="file" id="fileInput" accept="image/*,.sketch,.fig" onchange="handleUpload(event)" />
+        <div class="upload-icon">🖼</div>
+        <p>拖拽或点击上传<br/>静态设计稿</p>
+        <span>支持 PNG · JPG · Sketch · Figma</span>
+      </div>
+      <div class="upload-preview" id="uploadPreview">
+        <img id="uploadImg" src="" alt="" />
+        <div class="upload-preview-bar">
+          <span class="upload-preview-name" id="uploadName">—</span>
+          <button class="upload-preview-del" onclick="clearUpload()">✕</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 动效描述 -->
+    <div class="field">
+      <div class="section-title">动效描述</div>
+      <textarea id="descInput" rows="4" placeholder="描述你想要的动效效果，例如：小球从顶部落下，落地时压扁弹起，循环播放…"></textarea>
+      <div style="display:flex;flex-wrap:wrap;gap:5px;margin-top:4px;">
+        <button class="style-tag" onclick="appendDesc('Q弹弹跳')">Q弹弹跳</button>
+        <button class="style-tag" onclick="appendDesc('点赞心形')">点赞心形</button>
+        <button class="style-tag" onclick="appendDesc('粒子爆散')">粒子爆散</button>
+        <button class="style-tag" onclick="appendDesc('卡片翻转')">卡片翻转</button>
+        <button class="style-tag" onclick="appendDesc('加载转圈')">加载转圈</button>
+        <button class="style-tag" onclick="appendDesc('扫光效果')">扫光效果</button>
+        <button class="style-tag" onclick="appendDesc('数字跳动')">数字跳动</button>
+        <button class="style-tag" onclick="appendDesc('渐入渐出')">渐入渐出</button>
+      </div>
+    </div>
+
+    <!-- 动效时长 -->
+    <div class="field">
+      <div class="section-title">动效时长</div>
+      <div class="duration-row">
+        <input type="range" id="durationSlider" min="200" max="5000" step="100" value="1000" oninput="updateDuration(this.value)" />
+        <span class="duration-val" id="durationVal">1.0s</span>
+      </div>
+      <div style="display:flex;justify-content:space-between;margin-top:4px;">
+        <span style="font-size:10px;color:var(--text3);">0.2s</span>
+        <span style="font-size:10px;color:var(--text3);">5.0s</span>
+      </div>
+    </div>
+
+    <!-- 循环设置 -->
+    <div class="field">
+      <div class="section-title">播放设置</div>
+      <div style="display:flex;gap:8px;">
+        <button class="style-tag active" id="loopBtn" onclick="toggleLoop()">🔁 循环播放</button>
+        <button class="style-tag" id="autoBtn" onclick="toggleAuto()">▶ 自动播放</button>
+      </div>
+    </div>
+
+    <!-- 输出格式 -->
+    <div class="field">
+      <div class="section-title">输出格式</div>
+      <div class="format-grid">
+        <div class="format-item selected" onclick="selectFormat(this,'picasso')">
+          <input type="radio" name="format" value="picasso" checked />
+          <div class="format-check"></div>
+          <div class="format-icon">⚡</div>
+          <div class="format-name">Picasso JS</div>
+          <div class="format-desc">原生动画代码</div>
+        </div>
+        <div class="format-item" onclick="selectFormat(this,'mp4')">
+          <input type="radio" name="format" value="mp4" />
+          <div class="format-check"></div>
+          <div class="format-icon">🎬</div>
+          <div class="format-name">MP4 视频</div>
+          <div class="format-desc">透明背景导出</div>
+        </div>
+        <div class="format-item" onclick="selectFormat(this,'png')">
+          <input type="radio" name="format" value="png" />
+          <div class="format-check"></div>
+          <div class="format-icon">🖼</div>
+          <div class="format-name">PNG 序列帧</div>
+          <div class="format-desc">逐帧图片导出</div>
+        </div>
+        <div class="format-item" onclick="selectFormat(this,'gif')">
+          <input type="radio" name="format" value="gif" />
+          <div class="format-check"></div>
+          <div class="format-icon">🎞</div>
+          <div class="format-name">GIF 动图</div>
+          <div class="format-desc">兼容性最佳</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 生成按钮 -->
+    <div style="display:flex;flex-direction:column;gap:10px;">
+      <button class="generate-btn" id="generateBtn" onclick="triggerGenerate()">
+        <span class="btn-spinner" id="btnSpinner"></span>
+        <span id="btnText">✦ 生成动效</span>
+      </button>
+      <div class="progress-wrap" id="progressWrap">
+        <div class="progress-bar-bg"><div class="progress-bar-fill" id="progressFill"></div></div>
+        <div class="progress-text" id="progressText">正在分析草稿…</div>
+      </div>
+    </div>
+
+  </aside>
+
+  <!-- 中间：预览 -->
+  <main class="panel-center">
+    <div class="preview-toolbar">
+      <span class="tb-label">预览</span>
+      <button class="tb-btn active" id="tbPhone" onclick="setDevice('phone')">📱 手机</button>
+      <button class="tb-btn" id="tbPad" onclick="setDevice('pad')">📟 平板</button>
+      <div class="tb-sep"></div>
+      <button class="tb-btn" onclick="togglePlay()" id="playBtn">⏸ 暂停</button>
+      <button class="tb-btn" onclick="resetPreview()">↺ 重置</button>
+      <div class="tb-sep"></div>
+      <span class="tb-label">缩放</span>
+      <button class="tb-btn" onclick="setZoom(0.75)">75%</button>
+      <button class="tb-btn active" id="zoom100" onclick="setZoom(1)">100%</button>
+      <button class="tb-btn" onclick="setZoom(1.25)">125%</button>
+      <div style="flex:1;"></div>
+      <span style="font-size:11px;color:var(--text3);" id="previewInfo">375 × 480 · 60fps</span>
+    </div>
+    <div class="preview-area">
+      <div class="preview-grid"></div>
+      <div class="preview-canvas" id="previewCanvas" style="transform-origin:center;transition:transform .2s;perspective:900px;">
+
+        <!-- 上传图片背景层 -->
+        <div id="previewBgLayer" style="position:absolute;inset:0;z-index:0;border-radius:16px;overflow:hidden;display:none;">
+          <img id="previewUploadedImg" src="" alt="" style="width:100%;height:100%;object-fit:contain;" />
+        </div>
+
+        <!-- 空状态 -->
+        <div class="preview-empty" id="previewEmpty" style="position:relative;z-index:1;">
+          <div class="preview-empty-icon">✦</div>
+          <p>上传草稿并描述动效<br/>点击「生成动效」开始</p>
+        </div>
+
+        <!-- ══ SCENE 1 · 弹跳球 ══ -->
+        <div id="sceneBounce" style="display:none;position:absolute;inset:0;z-index:2;align-items:flex-end;justify-content:center;padding-bottom:40px;">
+          <div style="position:relative;width:80px;height:260px;display:flex;align-items:flex-end;justify-content:center;">
+            <div id="bounceShadow" style="
+              position:absolute;bottom:0;left:50%;
+              transform:translateX(-50%);
+              width:60px;height:12px;
+              background:radial-gradient(ellipse,rgba(255,107,53,0.5) 0%,transparent 70%);
+              border-radius:50%;
+              animation:preview-shadow 1.1s cubic-bezier(0.55,0,0.45,1) infinite;
+            "></div>
+            <div id="bounceBall" style="
+              position:absolute;bottom:6px;left:50%;
+              transform:translateX(-50%);
+              width:60px;height:60px;border-radius:50%;
+              background:radial-gradient(circle at 35% 35%,#FF9A6C,#FF6B35 60%,#CC4A1A);
+              box-shadow:0 4px 20px rgba(255,107,53,0.5);
+              animation:preview-bounce 1.1s cubic-bezier(0.55,0,0.45,1) infinite;
+              transform-origin:center bottom;
+            "></div>
+          </div>
+        </div>
+
+        <!-- ══ SCENE 2 · 点赞心形 ══ -->
+        <div id="sceneLike" style="display:none;position:absolute;inset:0;z-index:2;align-items:center;justify-content:center;">
+          <!-- 爆散环 -->
+          <div id="pvBurstRing" style="
+            position:absolute;
+            width:32px;height:32px;border-radius:50%;
+            border:1.5px solid #FF4B6E;
+            transform:translate(-50%,-50%) scale(0);
+            opacity:0;pointer-events:none;
+            top:50%;left:50%;
+          "></div>
+          <!-- 光晕 -->
+          <div id="pvLikeGlow" style="
+            position:absolute;
+            width:100px;height:100px;border-radius:50%;
+            background:radial-gradient(circle,rgba(255,75,110,0.22) 0%,transparent 70%);
+            transform:scale(0);pointer-events:none;
+            top:50%;left:50%;margin-left:-50px;margin-top:-50px;
+          "></div>
+          <!-- 粒子容器 -->
+          <div id="pvParticles" style="position:absolute;top:50%;left:50%;width:0;height:0;pointer-events:none;z-index:10;"></div>
+          <!-- 心形行 -->
+          <div id="pvLikeRow" onclick="triggerPreviewLike()" style="
+            position:relative;z-index:2;
+            display:flex;align-items:center;gap:8px;
+            cursor:pointer;user-select:none;
+            padding:10px 16px;border-radius:24px;
+            transition:background .15s;
+            -webkit-tap-highlight-color:transparent;
+          " onmouseenter="this.style.background='rgba(255,255,255,0.06)'" onmouseleave="this.style.background='transparent'" onmousedown="this.style.background='rgba(255,75,110,0.1)'" onmouseup="this.style.background='rgba(255,255,255,0.06)'">
+            <svg id="pvHeartIcon" width="28" height="28" viewBox="0 0 24 24" style="flex-shrink:0;display:block;">
+              <path id="pvHeartPath" d="M12 20.35L10.55 19.03C5.4 14.36 2 11.27 2 7.5C2 4.41 4.42 2 7.5 2C9.24 2 10.91 2.81 12 4.08C13.09 2.81 14.76 2 16.5 2C19.58 2 22 4.41 22 7.5C22 11.27 18.6 14.36 13.45 19.03L12 20.35Z"
+                fill="none" stroke="rgba(255,255,255,0.55)" stroke-width="2" stroke-linejoin="round"
+                style="transition:fill .15s,stroke .15s;"/>
+            </svg>
+            <div style="position:relative;height:22px;overflow:hidden;min-width:32px;">
+              <span id="pvLikeCount" style="display:block;color:rgba(255,255,255,0.55);font-size:15px;font-weight:500;line-height:22px;white-space:nowrap;transition:none;">87</span>
+            </div>
+          </div>
+          <div style="position:absolute;bottom:20px;font-size:11px;color:rgba(255,255,255,0.25);letter-spacing:1px;">点击心形触发动效</div>
+        </div>
+
+        <!-- ══ SCENE 3 · 徽章翻转 ══ -->
+        <div id="sceneBadge" style="display:none;position:absolute;inset:0;z-index:2;align-items:center;justify-content:center;">
+          <div style="position:relative;display:flex;align-items:center;justify-content:center;width:260px;height:260px;">
+            <!-- 底部投影 -->
+            <div id="pvBadgeShadow" style="
+              position:absolute;bottom:10px;left:50%;
+              transform:translateX(-50%);
+              width:130px;height:22px;
+              background:radial-gradient(ellipse,rgba(255,106,0,0.4) 0%,transparent 70%);
+              border-radius:50%;
+            "></div>
+            <!-- 徽章卡片 -->
+            <div id="pvBadgeCard" onclick="triggerPreviewBadgeSpin()" style="
+              position:relative;
+              width:190px;height:190px;border-radius:50%;
+              cursor:pointer;
+              transform-style:preserve-3d;
+              user-select:none;
+              -webkit-tap-highlight-color:transparent;
+            ">
+              <!-- 正面 -->
+              <div style="
+                position:absolute;inset:0;border-radius:50%;overflow:hidden;
+                backface-visibility:hidden;-webkit-backface-visibility:hidden;
+                box-shadow:0 12px 40px rgba(255,106,0,0.5),0 4px 12px rgba(0,0,0,0.3);
+                background:radial-gradient(circle at 40% 35%,#fff8f5 0%,#ffb347 30%,#ff6a00 70%,#e8450a 100%);
+              ">
+                <div id="pvBadgeSheen" style="
+                  position:absolute;top:-10%;left:-90%;width:70%;height:120%;
+                  background:linear-gradient(105deg,transparent 0%,rgba(255,255,255,0.04) 28%,rgba(255,255,255,0.5) 48%,rgba(255,255,255,0.7) 50%,rgba(255,255,255,0.5) 52%,rgba(255,255,255,0.04) 72%,transparent 100%);
+                  transform:skewX(-12deg);pointer-events:none;
+                  animation:pv-sheen-idle 3s ease-in-out infinite;
+                "></div>
+                <div id="pvBadgeImgWrap" style="position:absolute;inset:0;border-radius:50%;overflow:hidden;display:none;">
+                  <img id="pvBadgeImg" src="" style="width:100%;height:100%;object-fit:cover;border-radius:50%;" />
+                </div>
+                <!-- 默认徽章图案 -->
+                <div id="pvBadgeDefault" style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;">
+                  <div style="font-size:64px;line-height:1;">🏅</div>
+                </div>
+              </div>
+              <!-- 背面 -->
+              <div style="
+                position:absolute;inset:0;border-radius:50%;
+                background:radial-gradient(circle at 40% 38%,#3a2a1a 0%,#1e1208 100%);
+                backface-visibility:hidden;-webkit-backface-visibility:hidden;
+                transform:rotateY(180deg);
+                box-shadow:0 12px 40px rgba(0,0,0,0.6),0 4px 12px rgba(0,0,0,0.4);
+                display:flex;align-items:center;justify-content:center;
+              ">
+                <div style="position:absolute;inset:12px;border-radius:50%;border:1.5px solid rgba(255,160,60,0.2);"></div>
+                <div style="font-size:32px;opacity:0.3;">✦</div>
+              </div>
+            </div>
+          </div>
+          <div style="position:absolute;bottom:20px;font-size:11px;color:rgba(255,255,255,0.25);letter-spacing:1px;">点击旋转 · 悬停倾斜</div>
+        </div>
+
+        <!-- ══ SCENE 4 · 加载转圈 ══ -->
+        <div id="sceneLoading" style="display:none;position:absolute;inset:0;z-index:2;align-items:center;justify-content:center;flex-direction:column;gap:20px;">
+          <div id="loadingRingWrap" style="position:relative;width:100px;height:100px;cursor:pointer;" onclick="triggerLoadingClick()">
+            <!-- 轨道 -->
+            <svg width="100" height="100" style="position:absolute;inset:0;">
+              <circle cx="50" cy="50" r="40" fill="none" stroke="rgba(255,255,255,0.08)" stroke-width="6"/>
+            </svg>
+            <!-- 旋转弧 -->
+            <svg id="loadingArc" width="100" height="100" style="position:absolute;inset:0;animation:loading-spin 1s linear infinite;">
+              <defs>
+                <linearGradient id="arcGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+                  <stop offset="0%" stop-color="transparent"/>
+                  <stop offset="100%" stop-color="var(--accent)"/>
+                </linearGradient>
+              </defs>
+              <circle cx="50" cy="50" r="40" fill="none" stroke="url(#arcGrad)" stroke-width="6"
+                stroke-dasharray="188" stroke-dashoffset="47" stroke-linecap="round"
+                transform="rotate(-90 50 50)"/>
+            </svg>
+            <!-- 中心点 -->
+            <div id="loadingDot" style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:16px;height:16px;border-radius:50%;background:var(--accent);box-shadow:0 0 12px var(--accent);transition:transform .2s,box-shadow .2s;"></div>
+          </div>
+          <!-- 进度文字 -->
+          <div id="loadingPct" style="font-size:28px;font-weight:800;color:var(--accent);font-variant-numeric:tabular-nums;letter-spacing:-1px;">0%</div>
+          <div style="position:absolute;bottom:20px;font-size:11px;color:rgba(255,255,255,0.25);letter-spacing:1px;">点击切换速度 · 可拖拽</div>
+        </div>
+
+        <!-- ══ SCENE 5 · 涟漪扩散 ══ -->
+        <div id="sceneRipple" style="display:none;position:absolute;inset:0;z-index:2;align-items:center;justify-content:center;cursor:pointer;" onclick="triggerRippleClick(event)">
+          <div id="rippleCenter" style="position:relative;width:56px;height:56px;">
+            <div style="position:absolute;inset:0;border-radius:50%;background:radial-gradient(circle,var(--accent2),#00b4d8);box-shadow:0 0 20px rgba(0,212,255,0.5);z-index:2;"></div>
+          </div>
+          <!-- 涟漪容器 -->
+          <div id="rippleContainer" style="position:absolute;inset:0;pointer-events:none;overflow:hidden;border-radius:16px;"></div>
+          <div style="position:absolute;bottom:20px;font-size:11px;color:rgba(255,255,255,0.25);letter-spacing:1px;">点击任意位置触发涟漪</div>
+        </div>
+
+        <!-- ══ SCENE 6 · 呼吸脉冲 ══ -->
+        <div id="scenePulse" style="display:none;position:absolute;inset:0;z-index:2;align-items:center;justify-content:center;flex-direction:column;gap:16px;">
+          <div id="pulseWrap" style="position:relative;width:120px;height:120px;display:flex;align-items:center;justify-content:center;cursor:pointer;" onclick="triggerPulseClick()">
+            <!-- 外圈脉冲 -->
+            <div id="pulseRing1" style="position:absolute;inset:-20px;border-radius:50%;border:2px solid rgba(168,85,247,0.4);animation:pulse-ring 2s ease-out infinite;"></div>
+            <div id="pulseRing2" style="position:absolute;inset:-20px;border-radius:50%;border:2px solid rgba(168,85,247,0.25);animation:pulse-ring 2s ease-out infinite .7s;"></div>
+            <div id="pulseRing3" style="position:absolute;inset:-20px;border-radius:50%;border:2px solid rgba(168,85,247,0.15);animation:pulse-ring 2s ease-out infinite 1.4s;"></div>
+            <!-- 核心 -->
+            <div id="pulseCore" style="width:80px;height:80px;border-radius:50%;background:radial-gradient(circle at 40% 35%,#d8b4fe,#a855f7 60%,#7c3aed);box-shadow:0 0 30px rgba(168,85,247,0.6);animation:pulse-core 2s ease-in-out infinite;z-index:2;"></div>
+          </div>
+          <div id="pulseLabel" style="font-size:13px;color:rgba(168,85,247,0.8);letter-spacing:2px;font-weight:500;">BREATHING</div>
+          <div style="position:absolute;bottom:20px;font-size:11px;color:rgba(255,255,255,0.25);letter-spacing:1px;">点击改变颜色</div>
+        </div>
+
+        <!-- ══ SCENE 7 · 数字滚动 ══ -->
+        <div id="sceneCounter" style="display:none;position:absolute;inset:0;z-index:2;align-items:center;justify-content:center;flex-direction:column;gap:12px;">
+          <div style="font-size:12px;color:rgba(255,255,255,0.3);letter-spacing:3px;text-transform:uppercase;margin-bottom:4px;">SCORE</div>
+          <!-- 数字滚动槽 -->
+          <div id="counterDisplay" style="display:flex;align-items:center;gap:4px;cursor:pointer;" onclick="triggerCounterClick()">
+            <div class="counter-digit-wrap"><div class="counter-digit" id="cDigit0">0</div></div>
+            <div class="counter-digit-wrap"><div class="counter-digit" id="cDigit1">0</div></div>
+            <div class="counter-digit-wrap"><div class="counter-digit" id="cDigit2">0</div></div>
+            <div class="counter-digit-wrap"><div class="counter-digit" id="cDigit3">0</div></div>
+          </div>
+          <!-- +1 浮动 -->
+          <div id="counterPlus" style="font-size:20px;font-weight:700;color:var(--accent2);opacity:0;position:absolute;top:38%;pointer-events:none;">+100</div>
+          <div style="position:absolute;bottom:20px;font-size:11px;color:rgba(255,255,255,0.25);letter-spacing:1px;">点击加分</div>
+        </div>
+
+        <!-- ══ SCENE 8 · 消息气泡 ══ -->
+        <div id="sceneBubble" style="display:none;position:absolute;inset:0;z-index:2;align-items:flex-end;justify-content:flex-start;padding:20px 24px;flex-direction:column;gap:10px;">
+          <div id="bubbleList" style="width:100%;display:flex;flex-direction:column;gap:8px;flex:1;justify-content:flex-end;"></div>
+          <!-- 输入区 -->
+          <div style="width:100%;display:flex;gap:8px;align-items:center;">
+            <div id="bubbleInput" contenteditable="true" style="
+              flex:1;min-height:32px;max-height:64px;overflow:hidden;
+              background:rgba(255,255,255,0.07);border:1px solid rgba(255,255,255,0.12);
+              border-radius:16px;padding:6px 12px;font-size:13px;color:rgba(255,255,255,0.85);
+              outline:none;line-height:20px;
+            " placeholder="输入消息…" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendBubble()}"></div>
+            <button onclick="sendBubble()" style="
+              width:32px;height:32px;border-radius:50%;border:none;cursor:pointer;
+              background:linear-gradient(135deg,var(--accent),var(--accent2));
+              color:#fff;font-size:14px;display:flex;align-items:center;justify-content:center;
+              flex-shrink:0;transition:transform .15s;
+            " onmousedown="this.style.transform='scale(0.88)'" onmouseup="this.style.transform='scale(1)'">↑</button>
+          </div>
+        </div>
+
+        <!-- ══ SCENE 9 · 卡片翻转 ══ -->
+        <div id="sceneFlip" style="display:none;position:absolute;inset:0;z-index:2;align-items:center;justify-content:center;flex-direction:column;gap:16px;">
+          <div id="flipCardOuter" style="width:160px;height:220px;perspective:600px;cursor:pointer;" onclick="triggerFlipCard()">
+            <div id="flipCardInner" style="
+              width:100%;height:100%;position:relative;
+              transform-style:preserve-3d;
+              transition:transform 0.7s cubic-bezier(0.4,0.2,0.2,1);
+            ">
+              <!-- 正面 -->
+              <div style="
+                position:absolute;inset:0;border-radius:16px;
+                backface-visibility:hidden;-webkit-backface-visibility:hidden;
+                background:linear-gradient(135deg,#1e3a5f,#0f2040);
+                border:1px solid rgba(124,110,250,0.3);
+                box-shadow:0 8px 32px rgba(0,0,0,0.4);
+                display:flex;align-items:center;justify-content:center;flex-direction:column;gap:12px;
+              ">
+                <div style="font-size:48px;">🃏</div>
+                <div style="font-size:13px;color:rgba(255,255,255,0.5);letter-spacing:1px;">点击翻转</div>
+              </div>
+              <!-- 背面 -->
+              <div style="
+                position:absolute;inset:0;border-radius:16px;
+                backface-visibility:hidden;-webkit-backface-visibility:hidden;
+                transform:rotateY(180deg);
+                background:linear-gradient(135deg,#3d1a5f,#1a0f40);
+                border:1px solid rgba(168,85,247,0.3);
+                box-shadow:0 8px 32px rgba(0,0,0,0.4);
+                display:flex;align-items:center;justify-content:center;flex-direction:column;gap:12px;
+              ">
+                <div style="font-size:48px;">✨</div>
+                <div style="font-size:13px;color:rgba(168,85,247,0.7);letter-spacing:1px;">背面内容</div>
+              </div>
+            </div>
+          </div>
+          <div style="position:absolute;bottom:20px;font-size:11px;color:rgba(255,255,255,0.25);letter-spacing:1px;">点击翻转卡片</div>
+        </div>
+
+        <!-- ══ SCENE 10 · 粒子爆散 ══ -->
+        <div id="sceneParticle" style="display:none;position:absolute;inset:0;z-index:2;align-items:center;justify-content:center;cursor:pointer;" onclick="triggerParticleBurst(event)">
+          <div id="particleBtn" style="
+            padding:12px 28px;border-radius:24px;
+            background:linear-gradient(135deg,var(--orange),#FF9A6C);
+            font-size:15px;font-weight:700;color:#fff;
+            box-shadow:0 4px 20px rgba(255,107,53,0.5);
+            pointer-events:none;user-select:none;
+            transition:transform .1s;
+          ">🎉 爆散！</div>
+           <div id="particleField" style="position:absolute;inset:0;pointer-events:none;overflow:hidden;border-radius:16px;"></div>
+          <div style="position:absolute;bottom:20px;font-size:11px;color:rgba(255,255,255,0.25);letter-spacing:1px;">点击任意位置触发爆散</div>
+        </div>
+
+        <!-- ══ SCENE 11 · 自定义图片动效 ══ -->
+        <div id="sceneCustom" style="display:none;position:absolute;inset:0;z-index:2;align-items:center;justify-content:center;overflow:hidden;">
+          <!-- 粒子/装饰层（在图片后面） -->
+          <div id="customDecoLayer" style="position:absolute;inset:0;pointer-events:none;z-index:1;overflow:hidden;border-radius:16px;"></div>
+          <!-- 图片主体 -->
+          <div id="customImgWrap" style="
+            position:relative;z-index:2;
+            display:flex;align-items:center;justify-content:center;
+            cursor:pointer;
+          " onclick="triggerCustomAnim()">
+            <img id="customImg" src="" alt="" style="
+              max-width:220px;max-height:280px;
+              object-fit:contain;border-radius:12px;
+              display:block;
+              filter:drop-shadow(0 8px 24px rgba(0,0,0,0.5));
+            "/>
+            <!-- 手臂/附加层（挥手等动效用） -->
+            <div id="customArmLayer" style="position:absolute;inset:0;pointer-events:none;"></div>
+          </div>
+          <!-- 动效标签 -->
+          <div id="customAnimLabel" style="
+            position:absolute;bottom:44px;
+            background:rgba(255,255,255,0.07);
+            border:1px solid rgba(255,255,255,0.12);
+            border-radius:20px;padding:4px 14px;
+            font-size:11px;color:rgba(255,255,255,0.5);letter-spacing:1px;
+          ">点击图片重播动效</div>
+          <!-- 动效类型标签 -->
+          <div id="customAnimType" style="
+            position:absolute;top:16px;right:16px;
+            background:linear-gradient(135deg,var(--accent),var(--pink));
+            border-radius:8px;padding:3px 10px;
+            font-size:11px;color:#fff;font-weight:600;letter-spacing:0.5px;
+          ">自定义</div>
+        </div>
+
+        <!-- ══ SCENE 12 · AI 生成动效（iframe 渲染）══ -->
+        <div id="sceneAI" style="display:none;position:absolute;inset:0;z-index:3;border-radius:16px;overflow:hidden;">
+          <!-- AI 生成中的 loading 遮罩 -->
+          <div id="aiLoadingMask" style="
+            position:absolute;inset:0;z-index:10;
+            background:rgba(15,15,26,0.92);
+            display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;
+            border-radius:16px;
+          ">
+            <div style="position:relative;width:48px;height:48px;">
+              <div style="
+                position:absolute;inset:0;border-radius:50%;
+                border:2px solid transparent;
+                border-top-color:var(--accent);
+                border-right-color:var(--pink);
+                animation:loading-spin 0.8s linear infinite;
+              "></div>
+              <div style="
+                position:absolute;inset:6px;border-radius:50%;
+                border:2px solid transparent;
+                border-bottom-color:var(--accent2);
+                animation:loading-spin 1.2s linear infinite reverse;
+              "></div>
+            </div>
+            <div id="aiLoadingText" style="font-size:13px;color:var(--text2);letter-spacing:0.5px;">AI 正在生成动效…</div>
+            <div id="aiStreamPreview" style="
+              max-width:260px;font-size:11px;color:var(--text3);
+              text-align:center;line-height:1.6;min-height:32px;
+              font-family:monospace;word-break:break-all;
+            "></div>
+          </div>
+          <!-- 实际渲染 iframe -->
+          <iframe id="aiPreviewFrame" style="
+            width:100%;height:100%;border:none;
+            background:transparent;border-radius:16px;
+          " sandbox="allow-scripts allow-same-origin"></iframe>
+          <!-- AI 标签 -->
+          <div style="
+            position:absolute;top:12px;right:12px;z-index:5;
+            background:linear-gradient(135deg,var(--accent),var(--pink));
+            border-radius:8px;padding:3px 10px;
+            font-size:11px;color:#fff;font-weight:600;letter-spacing:0.5px;
+            pointer-events:none;
+          ">✦ AI 生成</div>
+          <!-- 重新生成按钮 -->
+          <button onclick="triggerGenerate()" style="
+            position:absolute;bottom:12px;right:12px;z-index:5;
+            height:28px;padding:0 12px;border-radius:8px;
+            border:1px solid rgba(255,255,255,0.15);
+            background:rgba(15,15,26,0.8);
+            color:rgba(255,255,255,0.6);font-size:11px;cursor:pointer;
+            backdrop-filter:blur(8px);transition:all .15s;
+          " onmouseover="this.style.background='rgba(124,110,250,0.2)';this.style.color='#fff'"
+             onmouseout="this.style.background='rgba(15,15,26,0.8)';this.style.color='rgba(255,255,255,0.6)'">↺ 重新生成</button>
+        </div>
+
+      </div>
+    </div>
+  </main>
+
+  <!-- 右侧：参数 & 输出 -->
+  <aside class="panel-right">
+
+    <!-- 动效参数 -->
+    <div>
+      <div class="section-title">动效参数</div>
+      <div class="card" style="padding:12px 14px;">
+        <div class="param-row">
+          <span class="param-label">动效名称</span>
+          <span class="param-val" id="paramName" style="color:var(--accent2);">—</span>
+        </div>
+        <div class="param-divider"></div>
+        <div class="param-row">
+          <span class="param-label">时长</span>
+          <span class="param-val" id="paramDuration">—</span>
+        </div>
+        <div class="param-divider"></div>
+        <div class="param-row">
+          <span class="param-label">缓动函数</span>
+          <span class="param-val" id="paramEasing">EaseOut</span>
+        </div>
+        <div class="param-divider"></div>
+        <div class="param-row">
+          <span class="param-label">帧率</span>
+          <span class="param-val">60 fps</span>
+        </div>
+        <div class="param-divider"></div>
+        <div class="param-row">
+          <span class="param-label">延迟</span>
+          <span class="param-val" id="paramDelay">0 ms</span>
+        </div>
+        <div class="param-divider"></div>
+        <div class="param-row">
+          <span class="param-label">循环次数</span>
+          <span class="param-val" id="paramLoop">∞</span>
+        </div>
+        <div class="param-divider"></div>
+        <div class="param-row">
+          <span class="param-label">播放方式</span>
+          <span class="param-val" id="paramPlayMode">循环</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- 缓动选择 -->
+    <div class="field">
+      <div class="section-title">缓动函数</div>
+      <div style="display:flex;flex-wrap:wrap;gap:5px;">
+        <button class="style-tag active" onclick="setEasing(this,'EaseOut')">EaseOut</button>
+        <button class="style-tag" onclick="setEasing(this,'EaseIn')">EaseIn</button>
+        <button class="style-tag" onclick="setEasing(this,'EaseInOut')">EaseInOut</button>
+        <button class="style-tag" onclick="setEasing(this,'Linear')">Linear</button>
+        <button class="style-tag" onclick="setEasing(this,'Spring')">Spring</button>
+        <button class="style-tag" onclick="setEasing(this,'Bounce')">Bounce</button>
+      </div>
+    </div>
+
+    <!-- 输出结果 -->
+    <div>
+      <div class="section-title">输出结果</div>
+      <div class="output-card" id="outputCard">
+        <div class="output-header">
+          <span class="output-title" id="outputTitle">Picasso JS 代码</span>
+          <div class="output-actions">
+            <button class="output-btn" onclick="copyOutput()">复制</button>
+            <button class="output-btn dl" onclick="downloadOutput()">↓ 下载</button>
+          </div>
+        </div>
+        <div class="output-code" id="outputCode"></div>
+      </div>
+      <div id="outputEmpty" style="padding:24px 0;text-align:center;color:var(--text3);font-size:12px;">
+        生成后在此查看输出结果
+      </div>
+    </div>
+
+    <!-- 历史记录 -->
+    <div>
+      <div class="section-title">最近生成</div>
+      <div id="historyList">
+        <div class="history-item" onclick="loadHistory('弹跳球动效')">
+          <div class="history-thumb">⚽</div>
+          <div class="history-info">
+            <div class="history-name">弹跳球动效</div>
+            <div class="history-time">今天 14:32</div>
+          </div>
+          <span class="history-badge tag-js">JS</span>
+        </div>
+        <div class="history-item" onclick="loadHistory('点赞心形')">
+          <div class="history-thumb">❤️</div>
+          <div class="history-info">
+            <div class="history-name">点赞心形动效</div>
+            <div class="history-time">今天 13:18</div>
+          </div>
+          <span class="history-badge tag-js">JS</span>
+        </div>
+        <div class="history-item" onclick="loadHistory('徽章旋转')">
+          <div class="history-thumb">🏅</div>
+          <div class="history-info">
+            <div class="history-name">徽章旋转扫光</div>
+            <div class="history-time">昨天 17:05</div>
+          </div>
+          <span class="history-badge tag-js">JS</span>
+        </div>
+      </div>
+    </div>
+
+  </aside>
+</div>
+
+<!-- 素材库 -->
+<section class="library-section">
+  <div class="library-header">
+    <div class="library-title">
+      素材库
+      <span class="library-badge">18 个动效</span>
+    </div>
+    <div style="display:flex;align-items:center;gap:12px;">
+      <div class="library-tabs">
+        <button class="lib-tab active" onclick="filterLib(this,'all')">全部</button>
+        <button class="lib-tab" onclick="filterLib(this,'basic')">基础</button>
+        <button class="lib-tab" onclick="filterLib(this,'interaction')">交互</button>
+        <button class="lib-tab" onclick="filterLib(this,'loading')">加载</button>
+        <button class="lib-tab" onclick="filterLib(this,'transition')">转场</button>
+      </div>
+      <button class="topbar-btn" style="height:28px;font-size:11px;">+ 上传素材</button>
+    </div>
+  </div>
+  <div class="library-grid" id="libraryGrid">
+
+    <div class="lib-item" data-cat="basic" data-name="弹跳球" data-duration="1.1s" data-playmode="循环" data-easing="Spring" data-desc="Q弹弹跳，小球从顶部落下，落地压扁弹起，循环播放" onclick="useLibItem(this)">
+      <div class="lib-item-preview" style="background:linear-gradient(135deg,#1a1a2e,#2a1a0e);">
+        <div class="mini-ball"></div>
+      </div>
+      <span class="lib-item-tag tag-js">JS</span>
+      <div class="lib-item-info">
+        <div class="lib-item-name">弹跳球</div>
+        <div class="lib-item-meta">1.1s · 循环</div>
+      </div>
+    </div>
+
+    <div class="lib-item" data-cat="interaction" data-name="点赞心形" data-duration="0.56s" data-playmode="触发" data-easing="Spring" data-desc="点击触发心形Q弹，粒子爆散，数字跳动" onclick="useLibItem(this)">
+      <div class="lib-item-preview" style="background:linear-gradient(135deg,#1a0e1a,#2a0e1a);">
+        <div class="mini-heart-wrap">
+          <svg class="mini-heart" viewBox="0 0 24 24"><path class="hp" d="M12 20.35L10.55 19.03C5.4 14.36 2 11.27 2 7.5C2 4.41 4.42 2 7.5 2C9.24 2 10.91 2.81 12 4.08C13.09 2.81 14.76 2 16.5 2C19.58 2 22 4.41 22 7.5C22 11.27 18.6 14.36 13.45 19.03L12 20.35Z"/></svg>
+          <span style="font-size:12px;color:rgba(255,255,255,0.4);">87</span>
+        </div>
+      </div>
+      <span class="lib-item-tag tag-new">NEW</span>
+      <div class="lib-item-info">
+        <div class="lib-item-name">点赞心形</div>
+        <div class="lib-item-meta">0.56s · 触发</div>
+      </div>
+    </div>
+
+    <div class="lib-item" data-cat="interaction" data-name="徽章旋转" data-duration="1.1s" data-playmode="触发" data-easing="EaseInOut" data-desc="徽章绕Y轴旋转720度，背面纯色，扫光效果" onclick="useLibItem(this)">
+      <div class="lib-item-preview" style="background:linear-gradient(135deg,#1a1208,#2a1a08);perspective:200px;">
+        <div class="mini-badge"></div>
+      </div>
+      <span class="lib-item-tag tag-js">JS</span>
+      <div class="lib-item-info">
+        <div class="lib-item-name">徽章旋转</div>
+        <div class="lib-item-meta">1.1s · 触发</div>
+      </div>
+    </div>
+
+    <div class="lib-item" data-cat="loading" data-name="加载转圈" data-duration="0.8s" data-playmode="循环" data-easing="Linear" data-desc="圆形加载指示器，匀速旋转" onclick="useLibItem(this)">
+      <div class="lib-item-preview" style="background:linear-gradient(135deg,#0e1a2a,#0e0e1a);">
+        <div class="mini-loading"></div>
+      </div>
+      <span class="lib-item-tag tag-css">CSS</span>
+      <div class="lib-item-info">
+        <div class="lib-item-name">加载转圈</div>
+        <div class="lib-item-meta">0.8s · 循环</div>
+      </div>
+    </div>
+
+    <div class="lib-item" data-cat="basic" data-name="涟漪扩散" data-duration="1.2s" data-playmode="循环" data-easing="EaseOut" data-desc="圆形涟漪向外扩散淡出，循环播放" onclick="useLibItem(this)">
+      <div class="lib-item-preview" style="background:linear-gradient(135deg,#0e1a14,#0e1a1a);">
+        <div class="mini-ripple"></div>
+      </div>
+      <span class="lib-item-tag tag-css">CSS</span>
+      <div class="lib-item-info">
+        <div class="lib-item-name">涟漪扩散</div>
+        <div class="lib-item-meta">1.2s · 循环</div>
+      </div>
+    </div>
+
+    <div class="lib-item" data-cat="basic" data-name="呼吸脉冲" data-duration="1.4s" data-playmode="循环" data-easing="EaseInOut" data-desc="元素缩放呼吸，柔和脉冲效果" onclick="useLibItem(this)">
+      <div class="lib-item-preview" style="background:linear-gradient(135deg,#1a0e1a,#0e0e1a);">
+        <div class="mini-pulse"></div>
+      </div>
+      <span class="lib-item-tag tag-css">CSS</span>
+      <div class="lib-item-info">
+        <div class="lib-item-name">呼吸脉冲</div>
+        <div class="lib-item-meta">1.4s · 循环</div>
+      </div>
+    </div>
+
+    <div class="lib-item" data-cat="transition" data-name="页面滑入" data-duration="0.4s" data-playmode="单次" data-easing="Spring" data-desc="页面从右侧滑入，带弹性回弹" onclick="useLibItem(this)">
+      <div class="lib-item-preview" style="background:linear-gradient(135deg,#0e1a2a,#1a1a2e);">
+        <div style="width:40px;height:52px;border-radius:6px;background:rgba(124,110,250,0.3);border:1px solid rgba(124,110,250,0.4);animation:slide-in-mini 1.2s ease-out infinite;"></div>
+      </div>
+      <span class="lib-item-tag tag-js">JS</span>
+      <div class="lib-item-info">
+        <div class="lib-item-name">页面滑入</div>
+        <div class="lib-item-meta">0.4s · 单次</div>
+      </div>
+    </div>
+
+    <div class="lib-item" data-cat="interaction" data-name="按钮点击" data-duration="0.3s" data-playmode="触发" data-easing="Spring" data-desc="按钮按下弹起，带压缩回弹效果" onclick="useLibItem(this)">
+      <div class="lib-item-preview" style="background:linear-gradient(135deg,#1a1a0e,#1a0e0e);">
+        <div style="padding:6px 14px;background:linear-gradient(135deg,var(--orange),#FF9A6C);border-radius:8px;font-size:11px;color:#fff;font-weight:600;animation:btn-press 1s ease-in-out infinite;">点击</div>
+      </div>
+      <span class="lib-item-tag tag-js">JS</span>
+      <div class="lib-item-info">
+        <div class="lib-item-name">按钮点击</div>
+        <div class="lib-item-meta">0.3s · 触发</div>
+      </div>
+    </div>
+
+    <div class="lib-item" data-cat="loading" data-name="骨架屏" data-duration="1.5s" data-playmode="循环" data-easing="EaseInOut" data-desc="内容加载骨架屏闪烁动效" onclick="useLibItem(this)">
+      <div class="lib-item-preview" style="background:var(--surface2);padding:10px;display:flex;flex-direction:column;gap:5px;justify-content:center;">
+        <div style="height:8px;border-radius:4px;background:rgba(255,255,255,0.08);animation:shimmer 1.5s ease-in-out infinite;"></div>
+        <div style="height:8px;border-radius:4px;background:rgba(255,255,255,0.08);width:70%;animation:shimmer 1.5s ease-in-out infinite .2s;"></div>
+        <div style="height:8px;border-radius:4px;background:rgba(255,255,255,0.08);width:85%;animation:shimmer 1.5s ease-in-out infinite .4s;"></div>
+      </div>
+      <span class="lib-item-tag tag-css">CSS</span>
+      <div class="lib-item-info">
+        <div class="lib-item-name">骨架屏</div>
+        <div class="lib-item-meta">1.5s · 循环</div>
+      </div>
+    </div>
+
+    <div class="lib-item" data-cat="basic" data-name="数字滚动" data-duration="0.3s" data-playmode="触发" data-easing="Spring" data-desc="数字从旧值滚动到新值，带弹性" onclick="useLibItem(this)">
+      <div class="lib-item-preview" style="background:linear-gradient(135deg,#0e1a1a,#0e0e1a);">
+        <div style="font-size:28px;font-weight:800;color:var(--accent2);animation:num-roll 1.5s ease-in-out infinite;font-variant-numeric:tabular-nums;">99</div>
+      </div>
+      <span class="lib-item-tag tag-js">JS</span>
+      <div class="lib-item-info">
+        <div class="lib-item-name">数字滚动</div>
+        <div class="lib-item-meta">0.3s · 触发</div>
+      </div>
+    </div>
+
+    <div class="lib-item" data-cat="transition" data-name="卡片翻转" data-duration="0.6s" data-playmode="触发" data-easing="EaseInOut" data-desc="卡片绕Y轴翻转，正反面切换" onclick="useLibItem(this)">
+      <div class="lib-item-preview" style="background:linear-gradient(135deg,#1a0e1a,#0e0e1a);perspective:200px;">
+        <div style="width:48px;height:64px;border-radius:8px;background:linear-gradient(135deg,var(--accent),var(--pink));animation:card-flip-mini 2s ease-in-out infinite;"></div>
+      </div>
+      <span class="lib-item-tag tag-js">JS</span>
+      <div class="lib-item-info">
+        <div class="lib-item-name">卡片翻转</div>
+        <div class="lib-item-meta">0.6s · 触发</div>
+      </div>
+    </div>
+
+    <div class="lib-item" data-cat="interaction" data-name="消息气泡" data-duration="0.4s" data-playmode="触发" data-easing="Spring" data-desc="消息气泡弹出，带弹性入场" onclick="useLibItem(this)">
+      <div class="lib-item-preview" style="background:linear-gradient(135deg,#0e1a0e,#0e1a1a);">
+        <div style="padding:6px 10px;background:rgba(52,211,153,0.2);border:1px solid rgba(52,211,153,0.3);border-radius:10px 10px 10px 2px;font-size:10px;color:var(--green);animation:bubble-pop 1.4s ease-out infinite;">Hi 👋</div>
+      </div>
+      <span class="lib-item-tag tag-js">JS</span>
+      <div class="lib-item-info">
+        <div class="lib-item-name">消息气泡</div>
+        <div class="lib-item-meta">0.4s · 触发</div>
+      </div>
+    </div>
+
+  </div>
+</section>
+
+<style>
+@keyframes slide-in-mini{0%{transform:translateX(30px);opacity:0;}40%{transform:translateX(-3px);opacity:1;}60%{transform:translateX(2px);}80%{transform:translateX(-1px);}100%{transform:translateX(0);opacity:1;}}
+@keyframes btn-press{0%,100%{transform:scale(1);}40%{transform:scale(0.88);}65%{transform:scale(1.06);}85%{transform:scale(0.97);}}
+@keyframes shimmer{0%,100%{opacity:0.4;}50%{opacity:1;}}
+@keyframes num-roll{0%,100%{transform:translateY(0);opacity:1;}40%{transform:translateY(-12px);opacity:0;}41%{transform:translateY(12px);opacity:0;}70%{transform:translateY(-2px);opacity:1;}}
+@keyframes card-flip-mini{0%,100%{transform:rotateY(0deg);}50%{transform:rotateY(180deg);}}
+@keyframes bubble-pop{0%{transform:scale(0);opacity:0;}50%{transform:scale(1.08);opacity:1;}70%{transform:scale(0.95);}85%{transform:scale(1.02);}100%{transform:scale(1);opacity:1;}}
+
+/* ── 新场景 keyframes ── */
+@keyframes loading-spin{from{transform:rotate(0deg);}to{transform:rotate(360deg);}}
+@keyframes pulse-ring{0%{transform:scale(1);opacity:0.8;}100%{transform:scale(2.2);opacity:0;}}
+@keyframes pulse-core{0%,100%{transform:scale(1);box-shadow:0 0 30px rgba(168,85,247,0.6);}50%{transform:scale(1.12);box-shadow:0 0 50px rgba(168,85,247,0.9);}}
+@keyframes bubble-in{0%{transform:scale(0) translateY(8px);opacity:0;transform-origin:bottom left;}60%{transform:scale(1.06) translateY(-2px);opacity:1;}80%{transform:scale(0.97);}100%{transform:scale(1) translateY(0);opacity:1;}}
+@keyframes bubble-in-right{0%{transform:scale(0) translateY(8px);opacity:0;transform-origin:bottom right;}60%{transform:scale(1.06) translateY(-2px);opacity:1;}80%{transform:scale(0.97);}100%{transform:scale(1) translateY(0);opacity:1;}}
+@keyframes counter-plus-float{0%{transform:translateY(0);opacity:1;}100%{transform:translateY(-40px);opacity:0;}}
+
+/* 数字滚动槽 */
+.counter-digit-wrap{
+  width:44px;height:64px;overflow:hidden;border-radius:10px;
+  background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);
+  display:flex;align-items:center;justify-content:center;
+}
+.counter-digit{
+  font-size:40px;font-weight:900;color:var(--accent2);
+  font-variant-numeric:tabular-nums;line-height:1;
+  will-change:transform;
+}
+</style>
+
+<script>
+// ══════════════════════════════════════════════════════════
+// CatDesk AI 引擎：通过本地代理调用
+// ══════════════════════════════════════════════════════════
+
+// 自动适配：从 proxy 访问时用同域，本地 file:// 打开时回退到 localhost:7788
+const PROXY_URL = (location.protocol === 'file:' || location.hostname === '')
+  ? 'http://127.0.0.1:7788'
+  : (location.origin)  // 公网/局域网访问时，API 和页面同域
+let _proxyAvailable = null  // null=未检测, true=可用, false=不可用
+
+async function checkProxy(){
+  for(let i = 0; i < 3; i++){
+    try {
+      const resp = await fetch(`${PROXY_URL}/health`, { signal: AbortSignal.timeout(4000) })
+      if(resp.ok){
+        const data = await resp.json()
+        const connected = !!data.catpaw_port
+        const rateLimited = data.port_status === 'rate_limit'
+        _proxyAvailable = connected
+        updateAiStatus(connected, rateLimited)
+        return connected
+      }
+    } catch(e){
+      if(i < 2) await new Promise(r => setTimeout(r, 800))
+    }
+  }
+  _proxyAvailable = false
+  updateAiStatus(false, false)
+  return false
+}
+
+function updateAiStatus(ok, rateLimited){
+  const dot = document.getElementById('aiStatusDot')
+  const text = document.getElementById('aiStatusText')
+  if(ok && !rateLimited){
+    dot.style.background = 'var(--green)'
+    dot.style.boxShadow = '0 0 6px var(--green)'
+    text.style.color = 'var(--green)'
+    text.textContent = 'CatDesk AI 已就绪'
+  } else if(ok && rateLimited){
+    dot.style.background = 'var(--orange)'
+    dot.style.boxShadow = '0 0 6px var(--orange)'
+    text.style.color = 'var(--orange)'
+    text.textContent = 'AI 已连接（限流中，稍后可用）'
+  } else {
+    dot.style.background = 'var(--pink)'
+    dot.style.boxShadow = '0 0 6px var(--pink)'
+    text.style.color = 'var(--pink)'
+    text.textContent = 'AI 引擎未连接'
+  }
+}
+
+// 页面加载时检测代理，延迟 500ms 等页面稳定；未连接时每 5s 自动重试
+;(function initAiStatus(){
+  setTimeout(checkProxy, 500)
+  setInterval(async () => {
+    if(!_proxyAvailable) await checkProxy()
+  }, 5000)
+})()
+
+// 点击状态文字可手动重新检测
+document.addEventListener('DOMContentLoaded', () => {
+  const statusEl = document.getElementById('aiStatusText')
+  if(statusEl){
+    statusEl.style.cursor = 'pointer'
+    statusEl.title = '点击重新检测'
+    statusEl.addEventListener('click', () => {
+      statusEl.textContent = '检测中…'
+      _proxyAvailable = null
+      checkProxy()
+    })
+  }
+})
+
+// ── 上传处理 ──
+let uploadedImageSrc = null
+
+function handleUpload(e){
+  const file = e.target.files[0]
+  if(!file) return
+  const reader = new FileReader()
+  reader.onload = ev => {
+    uploadedImageSrc = ev.target.result
+    // 左侧缩略图
+    document.getElementById('uploadImg').src = uploadedImageSrc
+    document.getElementById('uploadName').textContent = file.name
+    document.getElementById('uploadZone').style.display = 'none'
+    document.getElementById('uploadPreview').style.display = 'block'
+    // 显示到预览区背景层
+    showUploadInPreview(uploadedImageSrc)
+  }
+  reader.readAsDataURL(file)
+}
+
+function showUploadInPreview(src){
+  // 显示背景图层
+  document.getElementById('previewUploadedImg').src = src
+  document.getElementById('previewBgLayer').style.display = 'block'
+  // 隐藏空状态，保留当前场景（如果有）
+  document.getElementById('previewEmpty').style.display = 'none'
+  // 如果徽章场景激活，把图片也放到徽章正面
+  if(document.getElementById('sceneBadge').style.display !== 'none'){
+    document.getElementById('pvBadgeImg').src = src
+    document.getElementById('pvBadgeImgWrap').style.display = 'block'
+    document.getElementById('pvBadgeDefault').style.display = 'none'
+  }
+}
+
+function clearUpload(){
+  uploadedImageSrc = null
+  document.getElementById('uploadZone').style.display = 'flex'
+  document.getElementById('uploadPreview').style.display = 'none'
+  document.getElementById('fileInput').value = ''
+  // 隐藏背景图层
+  document.getElementById('previewBgLayer').style.display = 'none'
+  document.getElementById('previewUploadedImg').src = ''
+  // 重置徽章图片
+  document.getElementById('pvBadgeImgWrap').style.display = 'none'
+  document.getElementById('pvBadgeDefault').style.display = 'flex'
+  // 恢复空状态（如果没有场景激活）
+  const anyScene = ALL_SCENES.some(id => document.getElementById(id).style.display !== 'none')
+  if(!anyScene) document.getElementById('previewEmpty').style.display = 'flex'
+}
+
+// 拖拽上传
+const zone = document.getElementById('uploadZone')
+zone.addEventListener('dragover', e => { e.preventDefault(); zone.style.borderColor = 'var(--accent)' })
+zone.addEventListener('dragleave', () => { zone.style.borderColor = '' })
+zone.addEventListener('drop', e => {
+  e.preventDefault(); zone.style.borderColor = ''
+  const file = e.dataTransfer.files[0]
+  if(file){ document.getElementById('fileInput').files = e.dataTransfer.files; handleUpload({target:{files:[file]}}) }
+})
+
+// ── 时长 ──
+function updateDuration(v){
+  document.getElementById('durationVal').textContent = (v/1000).toFixed(1) + 's'
+}
+
+// ── 循环/自动 ──
+let loopOn = true, autoOn = false
+function toggleLoop(){
+  loopOn = !loopOn
+  const btn = document.getElementById('loopBtn')
+  btn.classList.toggle('active', loopOn)
+  document.getElementById('paramLoop').textContent = loopOn ? '∞' : '1'
+}
+function toggleAuto(){
+  autoOn = !autoOn
+  document.getElementById('autoBtn').classList.toggle('active', autoOn)
+}
+
+// ── 格式选择 ──
+function selectFormat(el, fmt){
+  document.querySelectorAll('.format-item').forEach(i => i.classList.remove('selected'))
+  el.classList.add('selected')
+  el.querySelector('input').checked = true
+  const titles = {picasso:'Picasso JS 代码', mp4:'MP4 视频文件', png:'PNG 序列帧', gif:'GIF 动图'}
+  document.getElementById('outputTitle').textContent = titles[fmt] || 'Picasso JS 代码'
+}
+
+// ── 缓动 ──
+function setEasing(el, val){
+  document.querySelectorAll('.panel-right .style-tag').forEach(t => t.classList.remove('active'))
+  el.classList.add('active')
+  document.getElementById('paramEasing').textContent = val
+}
+
+// ── 描述快捷标签 ──
+function appendDesc(text){
+  const ta = document.getElementById('descInput')
+  ta.value = ta.value ? ta.value + '，' + text : text
+  ta.focus()
+}
+
+// ── 设备切换 ──
+function setDevice(d){
+  document.getElementById('tbPhone').classList.toggle('active', d==='phone')
+  document.getElementById('tbPad').classList.toggle('active', d==='pad')
+  const canvas = document.getElementById('previewCanvas')
+  if(d==='pad'){ canvas.style.width='520px'; canvas.style.height='600px'; document.getElementById('previewInfo').textContent='768 × 600 · 60fps' }
+  else { canvas.style.width='375px'; canvas.style.height='480px'; document.getElementById('previewInfo').textContent='375 × 480 · 60fps' }
+}
+
+// ── 缩放 ──
+function setZoom(z){
+  document.getElementById('previewCanvas').style.transform = `scale(${z})`
+  document.querySelectorAll('.tb-btn').forEach(b => { if(['75%','100%','125%'].includes(b.textContent)) b.classList.remove('active') })
+  event.target.classList.add('active')
+}
+
+// ── 播放控制 ──
+let playing = true
+function togglePlay(){
+  playing = !playing
+  const btn = document.getElementById('playBtn')
+  btn.textContent = playing ? '⏸ 暂停' : '▶ 播放'
+  // 控制预览区场景动效
+  const state = playing ? 'running' : 'paused'
+  document.querySelectorAll('#bounceBall,#bounceShadow,#pvBadgeSheen,.mini-ball,.mini-badge,.mini-loading,.mini-ripple,.mini-pulse').forEach(el => {
+    el.style.animationPlayState = state
+  })
+}
+function resetPreview(){
+  // 重置弹跳球
+  const ball = document.getElementById('bounceBall')
+  const shadow = document.getElementById('bounceShadow')
+  if(ball){ ball.style.animation='none'; requestAnimationFrame(()=>{ ball.style.animation='' }) }
+  if(shadow){ shadow.style.animation='none'; requestAnimationFrame(()=>{ shadow.style.animation='' }) }
+  // 重置点赞状态
+  pvLiked = false; pvLikeCount = 87; pvLikeAnimating = false
+  const path = document.getElementById('pvHeartPath')
+  if(path){ path.setAttribute('fill','none'); path.setAttribute('stroke','rgba(255,255,255,0.55)') }
+  const countEl = document.getElementById('pvLikeCount')
+  if(countEl){ countEl.textContent = '87'; countEl.style.color = 'rgba(255,255,255,0.55)' }
+  // 重置徽章
+  const card = document.getElementById('pvBadgeCard')
+  if(card){ card.style.transform = ''; card.style.transition = '' }
+  const sheen = document.getElementById('pvBadgeSheen')
+  if(sheen){ sheen.style.animation = 'pv-sheen-idle 3s ease-in-out infinite'; sheen.style.opacity = '' }
+  pvBadgeSpinning = false; pvBadgeHovered = false
+  // 重置加载场景
+  if(document.getElementById('sceneLoading').style.display !== 'none') initLoadingScene()
+  // 重置数字场景
+  initCounterScene()
+  // 重置卡片翻转
+  flipCardFlipped = false
+  const flipInner = document.getElementById('flipCardInner')
+  if(flipInner) flipInner.style.transform = 'rotateY(0deg)'
+  // 重置呼吸脉冲主题
+  pulseThemeIdx = 0
+  // 重置素材库小动效
+  document.querySelectorAll('.mini-ball').forEach(el => {
+    el.style.animation = 'none'
+    requestAnimationFrame(() => { el.style.animation = '' })
+  })
+  // 重置 AI iframe（重新加载）
+  const aiFrame = document.getElementById('aiPreviewFrame')
+  if(aiFrame && aiFrame._blobUrl && document.getElementById('sceneAI').style.display !== 'none'){
+    aiFrame.src = aiFrame._blobUrl
+  }
+}
+
+// ── 预览区点赞动效（完整版，移植自 ball-bounce-preview.html）──
+let pvLiked = false, pvLikeCount = 87, pvLikeAnimating = false
+const PV_PARTICLE_COLORS = ['#FF4B6E','#FF8FAB','#FFB3C6','#FF6B9D','#FF4B6E','#FFD6E0','#FF8FAB','#FF6B9D']
+const PV_PARTICLE_SHAPES = ['50%','50%','50%','50%','3px','3px','50%','50%']
+
+function formatPvCount(n){ return n >= 1000 ? (n/1000).toFixed(1)+'k' : String(n) }
+
+function triggerPreviewLike(){
+  if(pvLikeAnimating) return
+  pvLikeAnimating = true
+
+  const row     = document.getElementById('pvLikeRow')
+  const heart   = document.getElementById('pvHeartIcon')
+  const path    = document.getElementById('pvHeartPath')
+  const glow    = document.getElementById('pvLikeGlow')
+  const ring    = document.getElementById('pvBurstRing')
+  const pcont   = document.getElementById('pvParticles')
+  const countEl = document.getElementById('pvLikeCount')
+
+  pvLiked = !pvLiked
+
+  // 心形颜色切换
+  if(pvLiked){
+    path.setAttribute('fill','#FF4B6E')
+    path.setAttribute('stroke','#FF4B6E')
+    countEl.style.color = '#FF4B6E'
+  } else {
+    path.setAttribute('fill','none')
+    path.setAttribute('stroke','rgba(255,255,255,0.55)')
+    countEl.style.color = 'rgba(255,255,255,0.55)'
+  }
+
+  // ── 心形 Q 弹 ──
+  heart.style.transformOrigin = '50% 90%'
+  heart.animate([
+    { transform:'scale(1)',                  offset:0    },
+    { transform:'scaleX(1.25) scaleY(0.75)',  offset:0.13 },
+    { transform:'scale(1.4)',                offset:0.38 },
+    { transform:'scale(0.9)',                offset:0.60 },
+    { transform:'scale(1.06)',               offset:0.76 },
+    { transform:'scale(0.97)',               offset:0.88 },
+    { transform:'scale(1.0)',                offset:1    },
+  ], { duration:560, easing:'linear', fill:'forwards' })
+
+  // ── 光晕 ──
+  if(pvLiked){
+    glow.animate([
+      { transform:'scale(0)', opacity:0 },
+      { transform:'scale(1.8)', opacity:1, offset:0.25 },
+      { transform:'scale(2.6)', opacity:0 },
+    ], { duration:520, easing:'ease-out', fill:'forwards' })
+  }
+
+  // ── 环形扩散 ──
+  if(pvLiked){
+    ring.animate([
+      { transform:'translate(-50%,-50%) scale(0)', opacity:0.9 },
+      { transform:'translate(-50%,-50%) scale(3.2)', opacity:0 },
+    ], { duration:400, easing:'ease-out', fill:'forwards' })
+  }
+
+  // ── 粒子爆散 ──
+  if(pvLiked){
+    pcont.innerHTML = ''
+    for(let i=0; i<8; i++){
+      const p = document.createElement('div')
+      const size = 4 + Math.random()*4
+      p.style.cssText = `width:${size}px;height:${size}px;background:${PV_PARTICLE_COLORS[i]};border-radius:${PV_PARTICLE_SHAPES[i]};position:absolute;top:0;left:0;`
+      pcont.appendChild(p)
+      const angle = (i/8)*360 + (Math.random()-0.5)*25
+      const rad   = (angle*Math.PI)/180
+      const dist  = 36 + Math.random()*18
+      const tx    = Math.cos(rad)*dist
+      const ty    = Math.sin(rad)*dist
+      p.animate([
+        { transform:'translate(-50%,-50%) scale(0)', opacity:1 },
+        { transform:`translate(calc(-50% + ${tx}px),calc(-50% + ${ty}px)) scale(1.1)`, opacity:1, offset:0.4 },
+        { transform:`translate(calc(-50% + ${tx*1.2}px),calc(-50% + ${ty*1.2}px)) scale(0.3)`, opacity:0 },
+      ], { duration:500, delay:i*15, easing:'ease-out', fill:'forwards' })
+    }
+  }
+
+  // ── 数字跳动 ──
+  if(pvLiked) pvLikeCount++; else pvLikeCount--
+  countEl.animate([
+    { transform:'translateY(0)', opacity:1 },
+    { transform:'translateY(-14px)', opacity:0 },
+  ], { duration:160, easing:'ease-in', fill:'forwards' })
+  setTimeout(() => {
+    countEl.textContent = formatPvCount(pvLikeCount)
+    countEl.animate([
+      { transform:'translateY(12px)', opacity:0 },
+      { transform:'translateY(-2px)', opacity:1, offset:0.7 },
+      { transform:'translateY(0)',    opacity:1 },
+    ], { duration:260, easing:'ease-out', fill:'forwards' })
+  }, 140)
+
+  setTimeout(() => { pvLikeAnimating = false }, 580)
+}
+
+// ── 生成动效 ──
+const CODES = {
+  '弹跳球': `<span class="kw">import</span> <span class="pun">{</span> <span class="cls">AnimationView</span><span class="pun">,</span> <span class="cls">Animation</span><span class="pun">,</span> <span class="cls">AnimationTimingFunction</span> <span class="pun">}</span> <span class="kw">from</span> <span class="str">'@dp/picasso-animation'</span>
+
+<span class="kw">const</span> <span class="prop">BALL_SIZE</span>     <span class="pun">=</span> <span class="num">60</span>
+<span class="kw">const</span> <span class="prop">BOUNCE_HEIGHT</span> <span class="pun">=</span> <span class="num">200</span>
+
+<span class="kw">function</span> <span class="fn">buildBounceAnimation</span><span class="pun">() {</span>
+  <span class="kw">const</span> anim <span class="pun">=</span> <span class="kw">new</span> <span class="cls">Animation</span><span class="pun">()</span>
+  anim<span class="pun">.</span><span class="fn">translateY</span><span class="pun">(</span><span class="num">0</span><span class="pun">, {</span> <span class="prop">fromValue</span><span class="pun">: -</span><span class="prop">BOUNCE_HEIGHT</span><span class="pun">,</span> <span class="prop">duration</span><span class="pun">:</span> <span class="num">400</span><span class="pun">,</span>
+    <span class="prop">timingFunction</span><span class="pun">:</span> <span class="cls">AnimationTimingFunction</span><span class="pun">.</span><span class="prop">EaseIn</span> <span class="pun">}).</span><span class="fn">step</span><span class="pun">()</span>
+  anim<span class="pun">.</span><span class="fn">scaleY</span><span class="pun">(</span><span class="num">0.6</span><span class="pun">, {</span> <span class="prop">duration</span><span class="pun">:</span> <span class="num">80</span><span class="pun">,</span> <span class="prop">timingFunction</span><span class="pun">:</span> <span class="cls">AnimationTimingFunction</span><span class="pun">.</span><span class="prop">Linear</span> <span class="pun">})</span>
+     <span class="pun">.</span><span class="fn">scaleX</span><span class="pun">(</span><span class="num">1.3</span><span class="pun">, {</span> <span class="prop">duration</span><span class="pun">:</span> <span class="num">80</span><span class="pun">,</span> <span class="prop">timingFunction</span><span class="pun">:</span> <span class="cls">AnimationTimingFunction</span><span class="pun">.</span><span class="prop">Linear</span> <span class="pun">}).</span><span class="fn">step</span><span class="pun">()</span>
+  anim<span class="pun">.</span><span class="fn">scaleY</span><span class="pun">(</span><span class="num">1.0</span><span class="pun">, {</span> <span class="prop">duration</span><span class="pun">:</span> <span class="num">350</span><span class="pun">,</span> <span class="prop">timingFunction</span><span class="pun">:</span> <span class="cls">AnimationTimingFunction</span><span class="pun">.</span><span class="prop">EaseOut</span> <span class="pun">})</span>
+     <span class="pun">.</span><span class="fn">scaleX</span><span class="pun">(</span><span class="num">1.0</span><span class="pun">, {</span> <span class="prop">duration</span><span class="pun">:</span> <span class="num">350</span><span class="pun">,</span> <span class="prop">timingFunction</span><span class="pun">:</span> <span class="cls">AnimationTimingFunction</span><span class="pun">.</span><span class="prop">EaseOut</span> <span class="pun">})</span>
+     <span class="pun">.</span><span class="fn">translateY</span><span class="pun">(-</span><span class="prop">BOUNCE_HEIGHT</span><span class="pun">, {</span> <span class="prop">duration</span><span class="pun">:</span> <span class="num">350</span><span class="pun">,</span> <span class="prop">timingFunction</span><span class="pun">:</span> <span class="cls">AnimationTimingFunction</span><span class="pun">.</span><span class="prop">EaseOut</span> <span class="pun">}).</span><span class="fn">step</span><span class="pun">()</span>
+  <span class="kw">return</span> anim<span class="pun">.</span><span class="fn">export</span><span class="pun">()</span>
+<span class="pun">}</span>`,
+  '点赞心形': `<span class="kw">import</span> <span class="pun">{</span> <span class="cls">Animation</span><span class="pun">,</span> <span class="cls">AnimationTimingFunction</span> <span class="pun">}</span> <span class="kw">from</span> <span class="str">'@dp/picasso-animation'</span>
+
+<span class="kw">function</span> <span class="fn">buildHeartAnimation</span><span class="pun">() {</span>
+  <span class="kw">const</span> anim <span class="pun">=</span> <span class="kw">new</span> <span class="cls">Animation</span><span class="pun">()</span>
+  <span class="cmt">// Phase 1 按下压扁</span>
+  anim<span class="pun">.</span><span class="fn">scaleX</span><span class="pun">(</span><span class="num">1.2</span><span class="pun">, {</span> <span class="prop">duration</span><span class="pun">:</span> <span class="num">80</span><span class="pun">,</span> <span class="prop">timingFunction</span><span class="pun">:</span> <span class="cls">AnimationTimingFunction</span><span class="pun">.</span><span class="prop">EaseIn</span> <span class="pun">})</span>
+     <span class="pun">.</span><span class="fn">scaleY</span><span class="pun">(</span><span class="num">0.8</span><span class="pun">, {</span> <span class="prop">duration</span><span class="pun">:</span> <span class="num">80</span><span class="pun">,</span> <span class="prop">timingFunction</span><span class="pun">:</span> <span class="cls">AnimationTimingFunction</span><span class="pun">.</span><span class="prop">EaseIn</span> <span class="pun">}).</span><span class="fn">step</span><span class="pun">()</span>
+  <span class="cmt">// Phase 2 Q弹弹出</span>
+  anim<span class="pun">.</span><span class="fn">scaleX</span><span class="pun">(</span><span class="num">1.35</span><span class="pun">, {</span> <span class="prop">duration</span><span class="pun">:</span> <span class="num">180</span><span class="pun">,</span> <span class="prop">timingFunction</span><span class="pun">:</span> <span class="cls">AnimationTimingFunction</span><span class="pun">.</span><span class="prop">EaseOut</span> <span class="pun">})</span>
+     <span class="pun">.</span><span class="fn">scaleY</span><span class="pun">(</span><span class="num">1.35</span><span class="pun">, {</span> <span class="prop">duration</span><span class="pun">:</span> <span class="num">180</span><span class="pun">,</span> <span class="prop">timingFunction</span><span class="pun">:</span> <span class="cls">AnimationTimingFunction</span><span class="pun">.</span><span class="prop">EaseOut</span> <span class="pun">}).</span><span class="fn">step</span><span class="pun">()</span>
+  <span class="cmt">// Phase 3 回弹稳定</span>
+  anim<span class="pun">.</span><span class="fn">scaleX</span><span class="pun">(</span><span class="num">1.0</span><span class="pun">, {</span> <span class="prop">duration</span><span class="pun">:</span> <span class="num">180</span><span class="pun">,</span> <span class="prop">timingFunction</span><span class="pun">:</span> <span class="cls">AnimationTimingFunction</span><span class="pun">.</span><span class="prop">EaseOut</span> <span class="pun">})</span>
+     <span class="pun">.</span><span class="fn">scaleY</span><span class="pun">(</span><span class="num">1.0</span><span class="pun">, {</span> <span class="prop">duration</span><span class="pun">:</span> <span class="num">180</span><span class="pun">,</span> <span class="prop">timingFunction</span><span class="pun">:</span> <span class="cls">AnimationTimingFunction</span><span class="pun">.</span><span class="prop">EaseOut</span> <span class="pun">}).</span><span class="fn">step</span><span class="pun">()</span>
+  <span class="kw">return</span> anim<span class="pun">.</span><span class="fn">export</span><span class="pun">()</span>
+<span class="pun">}</span>`,
+  '徽章旋转': `<span class="kw">import</span> <span class="pun">{</span> <span class="cls">Animation</span><span class="pun">,</span> <span class="cls">AnimationTimingFunction</span> <span class="pun">}</span> <span class="kw">from</span> <span class="str">'@dp/picasso-animation'</span>
+
+<span class="kw">function</span> <span class="fn">buildSpinAnimation</span><span class="pun">() {</span>
+  <span class="kw">const</span> anim <span class="pun">=</span> <span class="kw">new</span> <span class="cls">Animation</span><span class="pun">()</span>
+  anim<span class="pun">.</span><span class="fn">rotateY</span><span class="pun">(</span><span class="num">720</span><span class="pun">, {</span>
+    <span class="prop">fromValue</span><span class="pun">:</span> <span class="num">0</span><span class="pun">,</span>
+    <span class="prop">duration</span><span class="pun">:</span> <span class="num">1100</span><span class="pun">,</span>
+    <span class="prop">timingFunction</span><span class="pun">:</span> <span class="cls">AnimationTimingFunction</span><span class="pun">.</span><span class="prop">EaseInOut</span>
+  <span class="pun">}).</span><span class="fn">step</span><span class="pun">()</span>
+  <span class="kw">return</span> anim<span class="pun">.</span><span class="fn">export</span><span class="pun">()</span>
+<span class="pun">}</span>`,
+  '角色动效': `<span class="kw">import</span> <span class="pun">{</span> <span class="cls">Animation</span><span class="pun">,</span> <span class="cls">AnimationTimingFunction</span> <span class="pun">}</span> <span class="kw">from</span> <span class="str">'@dp/picasso-animation'</span>
+
+<span class="cmt">// 角色打招呼动效：浮动 + 挥手 + 眨眼</span>
+<span class="kw">function</span> <span class="fn">buildCharacterAnimation</span><span class="pun">() {</span>
+  <span class="cmt">// 整体浮动</span>
+  <span class="kw">const</span> floatAnim <span class="pun">=</span> <span class="kw">new</span> <span class="cls">Animation</span><span class="pun">()</span>
+  floatAnim<span class="pun">.</span><span class="fn">translateY</span><span class="pun">(-</span><span class="num">8</span><span class="pun">, {</span> <span class="prop">fromValue</span><span class="pun">:</span> <span class="num">0</span><span class="pun">,</span> <span class="prop">duration</span><span class="pun">:</span> <span class="num">1000</span><span class="pun">,</span>
+    <span class="prop">timingFunction</span><span class="pun">:</span> <span class="cls">AnimationTimingFunction</span><span class="pun">.</span><span class="prop">EaseInOut</span><span class="pun">,</span> <span class="prop">repeatCount</span><span class="pun">:</span> <span class="num">-1</span><span class="pun">,</span> <span class="prop">autoreverses</span><span class="pun">:</span> <span class="kw">true</span>
+  <span class="pun">}).</span><span class="fn">step</span><span class="pun">()</span>
+
+  <span class="cmt">// 挥手臂</span>
+  <span class="kw">const</span> waveAnim <span class="pun">=</span> <span class="kw">new</span> <span class="cls">Animation</span><span class="pun">()</span>
+  waveAnim<span class="pun">.</span><span class="fn">rotate</span><span class="pun">(</span><span class="num">8</span><span class="pun">, {</span> <span class="prop">fromValue</span><span class="pun">: -</span><span class="num">8</span><span class="pun">,</span> <span class="prop">duration</span><span class="pun">:</span> <span class="num">600</span><span class="pun">,</span>
+    <span class="prop">timingFunction</span><span class="pun">:</span> <span class="cls">AnimationTimingFunction</span><span class="pun">.</span><span class="prop">EaseInOut</span><span class="pun">,</span> <span class="prop">repeatCount</span><span class="pun">:</span> <span class="num">-1</span><span class="pun">,</span> <span class="prop">autoreverses</span><span class="pun">:</span> <span class="kw">true</span>
+  <span class="pun">}).</span><span class="fn">step</span><span class="pun">()</span>
+
+  <span class="cmt">// 眨眼</span>
+  <span class="kw">const</span> blinkAnim <span class="pun">=</span> <span class="kw">new</span> <span class="cls">Animation</span><span class="pun">()</span>
+  blinkAnim<span class="pun">.</span><span class="fn">scaleY</span><span class="pun">(</span><span class="num">0.1</span><span class="pun">, {</span> <span class="prop">fromValue</span><span class="pun">:</span> <span class="num">1</span><span class="pun">,</span> <span class="prop">duration</span><span class="pun">:</span> <span class="num">80</span><span class="pun">,</span>
+    <span class="prop">timingFunction</span><span class="pun">:</span> <span class="cls">AnimationTimingFunction</span><span class="pun">.</span><span class="prop">Linear</span>
+  <span class="pun">}).</span><span class="fn">step</span><span class="pun">()</span>
+  blinkAnim<span class="pun">.</span><span class="fn">scaleY</span><span class="pun">(</span><span class="num">1</span><span class="pun">, {</span> <span class="prop">duration</span><span class="pun">:</span> <span class="num">80</span><span class="pun">,</span>
+    <span class="prop">timingFunction</span><span class="pun">:</span> <span class="cls">AnimationTimingFunction</span><span class="pun">.</span><span class="prop">Linear</span>
+  <span class="pun">}).</span><span class="fn">step</span><span class="pun">()</span>
+
+  <span class="kw">return</span> <span class="pun">{</span> <span class="prop">float</span><span class="pun">:</span> floatAnim<span class="pun">.</span><span class="fn">export</span><span class="pun">(),</span> <span class="prop">wave</span><span class="pun">:</span> waveAnim<span class="pun">.</span><span class="fn">export</span><span class="pun">(),</span> <span class="prop">blink</span><span class="pun">:</span> blinkAnim<span class="pun">.</span><span class="fn">export</span><span class="pun">() }</span>
+<span class="pun">}</span>`,
+  '自定义': `<span class="kw">import</span> <span class="pun">{</span> <span class="cls">Animation</span><span class="pun">,</span> <span class="cls">AnimationTimingFunction</span> <span class="pun">}</span> <span class="kw">from</span> <span class="str">'@dp/picasso-animation'</span>
+
+<span class="cmt">// 根据描述自动生成的动效</span>
+<span class="kw">function</span> <span class="fn">buildCustomAnimation</span><span class="pun">() {</span>
+  <span class="kw">const</span> anim <span class="pun">=</span> <span class="kw">new</span> <span class="cls">Animation</span><span class="pun">()</span>
+  anim<span class="pun">.</span><span class="fn">translateY</span><span class="pun">(-</span><span class="num">8</span><span class="pun">, {</span> <span class="prop">fromValue</span><span class="pun">:</span> <span class="num">0</span><span class="pun">,</span> <span class="prop">duration</span><span class="pun">:</span> <span class="num">800</span><span class="pun">,</span>
+    <span class="prop">timingFunction</span><span class="pun">:</span> <span class="cls">AnimationTimingFunction</span><span class="pun">.</span><span class="prop">EaseInOut</span><span class="pun">,</span>
+    <span class="prop">repeatCount</span><span class="pun">:</span> <span class="num">-1</span><span class="pun">,</span> <span class="prop">autoreverses</span><span class="pun">:</span> <span class="kw">true</span>
+  <span class="pun">}).</span><span class="fn">step</span><span class="pun">()</span>
+  <span class="kw">return</span> anim<span class="pun">.</span><span class="fn">export</span><span class="pun">()</span>
+<span class="pun">}</span>`,
+
+  '加载转圈': `<span class="kw">import</span> <span class="pun">{</span> <span class="cls">Animation</span><span class="pun">,</span> <span class="cls">AnimationTimingFunction</span> <span class="pun">}</span> <span class="kw">from</span> <span class="str">'@dp/picasso-animation'</span>
+
+<span class="cmt">// 加载转圈：弧形旋转 + 进度数字</span>
+<span class="kw">function</span> <span class="fn">buildLoadingAnimation</span><span class="pun">() {</span>
+  <span class="kw">const</span> spinAnim <span class="pun">=</span> <span class="kw">new</span> <span class="cls">Animation</span><span class="pun">()</span>
+  spinAnim<span class="pun">.</span><span class="fn">rotate</span><span class="pun">(</span><span class="num">360</span><span class="pun">, {</span>
+    <span class="prop">fromValue</span><span class="pun">:</span> <span class="num">0</span><span class="pun">,</span>
+    <span class="prop">duration</span><span class="pun">:</span> <span class="num">1000</span><span class="pun">,</span>
+    <span class="prop">timingFunction</span><span class="pun">:</span> <span class="cls">AnimationTimingFunction</span><span class="pun">.</span><span class="prop">Linear</span><span class="pun">,</span>
+    <span class="prop">repeatCount</span><span class="pun">:</span> <span class="num">-1</span>
+  <span class="pun">}).</span><span class="fn">step</span><span class="pun">()</span>
+  <span class="kw">const</span> progressAnim <span class="pun">=</span> <span class="kw">new</span> <span class="cls">Animation</span><span class="pun">()</span>
+  progressAnim<span class="pun">.</span><span class="fn">custom</span><span class="pun">(</span><span class="str">'strokeDashoffset'</span><span class="pun">,</span> <span class="num">0</span><span class="pun">, {</span>
+    <span class="prop">fromValue</span><span class="pun">:</span> <span class="num">188</span><span class="pun">,</span>
+    <span class="prop">duration</span><span class="pun">:</span> <span class="num">2000</span><span class="pun">,</span>
+    <span class="prop">timingFunction</span><span class="pun">:</span> <span class="cls">AnimationTimingFunction</span><span class="pun">.</span><span class="prop">EaseInOut</span>
+  <span class="pun">}).</span><span class="fn">step</span><span class="pun">()</span>
+  <span class="kw">return</span> <span class="pun">{</span> <span class="prop">spin</span><span class="pun">:</span> spinAnim<span class="pun">.</span><span class="fn">export</span><span class="pun">(),</span> <span class="prop">progress</span><span class="pun">:</span> progressAnim<span class="pun">.</span><span class="fn">export</span><span class="pun">() }</span>
+<span class="pun">}</span>`,
+
+  '涟漪扩散': `<span class="kw">import</span> <span class="pun">{</span> <span class="cls">Animation</span><span class="pun">,</span> <span class="cls">AnimationTimingFunction</span> <span class="pun">}</span> <span class="kw">from</span> <span class="str">'@dp/picasso-animation'</span>
+
+<span class="cmt">// 涟漪扩散：三层同心圆向外扩散淡出</span>
+<span class="kw">function</span> <span class="fn">buildRippleAnimation</span><span class="pun">(</span>delay <span class="pun">=</span> <span class="num">0</span><span class="pun">) {</span>
+  <span class="kw">const</span> anim <span class="pun">=</span> <span class="kw">new</span> <span class="cls">Animation</span><span class="pun">()</span>
+  anim<span class="pun">.</span><span class="fn">scale</span><span class="pun">(</span><span class="num">3.5</span><span class="pun">, {</span> <span class="prop">fromValue</span><span class="pun">:</span> <span class="num">0.2</span><span class="pun">,</span> <span class="prop">duration</span><span class="pun">:</span> <span class="num">900</span><span class="pun">,</span>
+    <span class="prop">timingFunction</span><span class="pun">:</span> <span class="cls">AnimationTimingFunction</span><span class="pun">.</span><span class="prop">EaseOut</span><span class="pun">,</span>
+    <span class="prop">delay</span><span class="pun">:</span> delay
+  <span class="pun">}).</span><span class="fn">step</span><span class="pun">()</span>
+  anim<span class="pun">.</span><span class="fn">opacity</span><span class="pun">(</span><span class="num">0</span><span class="pun">, {</span> <span class="prop">fromValue</span><span class="pun">:</span> <span class="num">0.8</span><span class="pun">,</span> <span class="prop">duration</span><span class="pun">:</span> <span class="num">900</span><span class="pun">,</span>
+    <span class="prop">timingFunction</span><span class="pun">:</span> <span class="cls">AnimationTimingFunction</span><span class="pun">.</span><span class="prop">EaseOut</span><span class="pun">,</span>
+    <span class="prop">delay</span><span class="pun">:</span> delay
+  <span class="pun">}).</span><span class="fn">step</span><span class="pun">()</span>
+  <span class="kw">return</span> anim<span class="pun">.</span><span class="fn">export</span><span class="pun">()</span>
+<span class="pun">}</span>
+<span class="cmt">// 三层：delay 0 / 200 / 400ms</span>
+<span class="kw">const</span> ripples <span class="pun">= [</span><span class="num">0</span><span class="pun">,</span><span class="num">200</span><span class="pun">,</span><span class="num">400</span><span class="pun">].</span><span class="fn">map</span><span class="pun">(</span>buildRippleAnimation<span class="pun">)</span>`,
+
+  '呼吸脉冲': `<span class="kw">import</span> <span class="pun">{</span> <span class="cls">Animation</span><span class="pun">,</span> <span class="cls">AnimationTimingFunction</span> <span class="pun">}</span> <span class="kw">from</span> <span class="str">'@dp/picasso-animation'</span>
+
+<span class="cmt">// 呼吸脉冲：核心缩放 + 外圈扩散</span>
+<span class="kw">function</span> <span class="fn">buildPulseAnimation</span><span class="pun">() {</span>
+  <span class="kw">const</span> coreAnim <span class="pun">=</span> <span class="kw">new</span> <span class="cls">Animation</span><span class="pun">()</span>
+  coreAnim<span class="pun">.</span><span class="fn">scale</span><span class="pun">(</span><span class="num">1.12</span><span class="pun">, {</span> <span class="prop">fromValue</span><span class="pun">:</span> <span class="num">1</span><span class="pun">,</span> <span class="prop">duration</span><span class="pun">:</span> <span class="num">1000</span><span class="pun">,</span>
+    <span class="prop">timingFunction</span><span class="pun">:</span> <span class="cls">AnimationTimingFunction</span><span class="pun">.</span><span class="prop">EaseInOut</span><span class="pun">,</span>
+    <span class="prop">repeatCount</span><span class="pun">:</span> <span class="num">-1</span><span class="pun">,</span> <span class="prop">autoreverses</span><span class="pun">:</span> <span class="kw">true</span>
+  <span class="pun">}).</span><span class="fn">step</span><span class="pun">()</span>
+  <span class="kw">const</span> ringAnim <span class="pun">=</span> <span class="kw">new</span> <span class="cls">Animation</span><span class="pun">()</span>
+  ringAnim<span class="pun">.</span><span class="fn">scale</span><span class="pun">(</span><span class="num">2.2</span><span class="pun">, {</span> <span class="prop">fromValue</span><span class="pun">:</span> <span class="num">1</span><span class="pun">,</span> <span class="prop">duration</span><span class="pun">:</span> <span class="num">2000</span><span class="pun">,</span>
+    <span class="prop">timingFunction</span><span class="pun">:</span> <span class="cls">AnimationTimingFunction</span><span class="pun">.</span><span class="prop">EaseOut</span><span class="pun">,</span>
+    <span class="prop">repeatCount</span><span class="pun">:</span> <span class="num">-1</span>
+  <span class="pun">}).</span><span class="fn">step</span><span class="pun">()</span>
+  ringAnim<span class="pun">.</span><span class="fn">opacity</span><span class="pun">(</span><span class="num">0</span><span class="pun">, {</span> <span class="prop">fromValue</span><span class="pun">:</span> <span class="num">0.8</span><span class="pun">,</span> <span class="prop">duration</span><span class="pun">:</span> <span class="num">2000</span><span class="pun">,</span>
+    <span class="prop">timingFunction</span><span class="pun">:</span> <span class="cls">AnimationTimingFunction</span><span class="pun">.</span><span class="prop">EaseOut</span><span class="pun">,</span>
+    <span class="prop">repeatCount</span><span class="pun">:</span> <span class="num">-1</span>
+  <span class="pun">}).</span><span class="fn">step</span><span class="pun">()</span>
+  <span class="kw">return</span> <span class="pun">{</span> <span class="prop">core</span><span class="pun">:</span> coreAnim<span class="pun">.</span><span class="fn">export</span><span class="pun">(),</span> <span class="prop">ring</span><span class="pun">:</span> ringAnim<span class="pun">.</span><span class="fn">export</span><span class="pun">() }</span>
+<span class="pun">}</span>`,
+
+  '数字滚动': `<span class="kw">import</span> <span class="pun">{</span> <span class="cls">Animation</span><span class="pun">,</span> <span class="cls">AnimationTimingFunction</span> <span class="pun">}</span> <span class="kw">from</span> <span class="str">'@dp/picasso-animation'</span>
+
+<span class="cmt">// 数字滚动：旧值上移淡出，新值下方淡入</span>
+<span class="kw">function</span> <span class="fn">buildCounterAnimation</span><span class="pun">(</span>fromVal<span class="pun">,</span> toVal<span class="pun">) {</span>
+  <span class="kw">const</span> outAnim <span class="pun">=</span> <span class="kw">new</span> <span class="cls">Animation</span><span class="pun">()</span>
+  outAnim<span class="pun">.</span><span class="fn">translateY</span><span class="pun">(-</span><span class="num">20</span><span class="pun">, {</span> <span class="prop">fromValue</span><span class="pun">:</span> <span class="num">0</span><span class="pun">,</span> <span class="prop">duration</span><span class="pun">:</span> <span class="num">150</span><span class="pun">,</span>
+    <span class="prop">timingFunction</span><span class="pun">:</span> <span class="cls">AnimationTimingFunction</span><span class="pun">.</span><span class="prop">EaseIn</span>
+  <span class="pun">}).</span><span class="fn">step</span><span class="pun">()</span>
+  outAnim<span class="pun">.</span><span class="fn">opacity</span><span class="pun">(</span><span class="num">0</span><span class="pun">, {</span> <span class="prop">fromValue</span><span class="pun">:</span> <span class="num">1</span><span class="pun">,</span> <span class="prop">duration</span><span class="pun">:</span> <span class="num">150</span><span class="pun">,</span>
+    <span class="prop">timingFunction</span><span class="pun">:</span> <span class="cls">AnimationTimingFunction</span><span class="pun">.</span><span class="prop">EaseIn</span>
+  <span class="pun">}).</span><span class="fn">step</span><span class="pun">()</span>
+  <span class="kw">const</span> inAnim <span class="pun">=</span> <span class="kw">new</span> <span class="cls">Animation</span><span class="pun">()</span>
+  inAnim<span class="pun">.</span><span class="fn">translateY</span><span class="pun">(</span><span class="num">0</span><span class="pun">, {</span> <span class="prop">fromValue</span><span class="pun">:</span> <span class="num">20</span><span class="pun">,</span> <span class="prop">duration</span><span class="pun">:</span> <span class="num">220</span><span class="pun">,</span>
+    <span class="prop">timingFunction</span><span class="pun">:</span> <span class="cls">AnimationTimingFunction</span><span class="pun">.</span><span class="prop">EaseOut</span>
+  <span class="pun">}).</span><span class="fn">step</span><span class="pun">()</span>
+  inAnim<span class="pun">.</span><span class="fn">opacity</span><span class="pun">(</span><span class="num">1</span><span class="pun">, {</span> <span class="prop">fromValue</span><span class="pun">:</span> <span class="num">0</span><span class="pun">,</span> <span class="prop">duration</span><span class="pun">:</span> <span class="num">220</span><span class="pun">,</span>
+    <span class="prop">timingFunction</span><span class="pun">:</span> <span class="cls">AnimationTimingFunction</span><span class="pun">.</span><span class="prop">EaseOut</span>
+  <span class="pun">}).</span><span class="fn">step</span><span class="pun">()</span>
+  <span class="kw">return</span> <span class="pun">{</span> <span class="prop">out</span><span class="pun">:</span> outAnim<span class="pun">.</span><span class="fn">export</span><span class="pun">(),</span> <span class="prop">in</span><span class="pun">:</span> inAnim<span class="pun">.</span><span class="fn">export</span><span class="pun">() }</span>
+<span class="pun">}</span>`,
+
+  '消息气泡': `<span class="kw">import</span> <span class="pun">{</span> <span class="cls">Animation</span><span class="pun">,</span> <span class="cls">AnimationTimingFunction</span> <span class="pun">}</span> <span class="kw">from</span> <span class="str">'@dp/picasso-animation'</span>
+
+<span class="cmt">// 消息气泡：从底部弹出，带弹性回弹</span>
+<span class="kw">function</span> <span class="fn">buildBubbleAnimation</span><span class="pun">() {</span>
+  <span class="kw">const</span> anim <span class="pun">=</span> <span class="kw">new</span> <span class="cls">Animation</span><span class="pun">()</span>
+  <span class="cmt">// 缩放弹出</span>
+  anim<span class="pun">.</span><span class="fn">scale</span><span class="pun">(</span><span class="num">1.06</span><span class="pun">, {</span> <span class="prop">fromValue</span><span class="pun">:</span> <span class="num">0</span><span class="pun">,</span> <span class="prop">duration</span><span class="pun">:</span> <span class="num">240</span><span class="pun">,</span>
+    <span class="prop">timingFunction</span><span class="pun">:</span> <span class="cls">AnimationTimingFunction</span><span class="pun">.</span><span class="prop">EaseOut</span>
+  <span class="pun">}).</span><span class="fn">step</span><span class="pun">()</span>
+  <span class="cmt">// 回弹</span>
+  anim<span class="pun">.</span><span class="fn">scale</span><span class="pun">(</span><span class="num">0.97</span><span class="pun">, {</span> <span class="prop">duration</span><span class="pun">:</span> <span class="num">80</span><span class="pun">,</span>
+    <span class="prop">timingFunction</span><span class="pun">:</span> <span class="cls">AnimationTimingFunction</span><span class="pun">.</span><span class="prop">EaseIn</span>
+  <span class="pun">}).</span><span class="fn">step</span><span class="pun">()</span>
+  anim<span class="pun">.</span><span class="fn">scale</span><span class="pun">(</span><span class="num">1.0</span><span class="pun">, {</span> <span class="prop">duration</span><span class="pun">:</span> <span class="num">80</span><span class="pun">,</span>
+    <span class="prop">timingFunction</span><span class="pun">:</span> <span class="cls">AnimationTimingFunction</span><span class="pun">.</span><span class="prop">EaseOut</span>
+  <span class="pun">}).</span><span class="fn">step</span><span class="pun">()</span>
+  <span class="kw">return</span> anim<span class="pun">.</span><span class="fn">export</span><span class="pun">()</span>
+<span class="pun">}</span>`,
+
+  '卡片翻转': `<span class="kw">import</span> <span class="pun">{</span> <span class="cls">Animation</span><span class="pun">,</span> <span class="cls">AnimationTimingFunction</span> <span class="pun">}</span> <span class="kw">from</span> <span class="str">'@dp/picasso-animation'</span>
+
+<span class="cmt">// 卡片翻转：绕Y轴180°，正反面切换</span>
+<span class="kw">function</span> <span class="fn">buildFlipAnimation</span><span class="pun">() {</span>
+  <span class="kw">const</span> frontOut <span class="pun">=</span> <span class="kw">new</span> <span class="cls">Animation</span><span class="pun">()</span>
+  frontOut<span class="pun">.</span><span class="fn">rotateY</span><span class="pun">(</span><span class="num">90</span><span class="pun">, {</span> <span class="prop">fromValue</span><span class="pun">:</span> <span class="num">0</span><span class="pun">,</span> <span class="prop">duration</span><span class="pun">:</span> <span class="num">350</span><span class="pun">,</span>
+    <span class="prop">timingFunction</span><span class="pun">:</span> <span class="cls">AnimationTimingFunction</span><span class="pun">.</span><span class="prop">EaseIn</span>
+  <span class="pun">}).</span><span class="fn">step</span><span class="pun">()</span>
+  <span class="kw">const</span> backIn <span class="pun">=</span> <span class="kw">new</span> <span class="cls">Animation</span><span class="pun">()</span>
+  backIn<span class="pun">.</span><span class="fn">rotateY</span><span class="pun">(</span><span class="num">180</span><span class="pun">, {</span> <span class="prop">fromValue</span><span class="pun">:</span> <span class="num">90</span><span class="pun">,</span> <span class="prop">duration</span><span class="pun">:</span> <span class="num">350</span><span class="pun">,</span>
+    <span class="prop">timingFunction</span><span class="pun">:</span> <span class="cls">AnimationTimingFunction</span><span class="pun">.</span><span class="prop">EaseOut</span>
+  <span class="pun">}).</span><span class="fn">step</span><span class="pun">()</span>
+  <span class="kw">return</span> <span class="pun">{</span> <span class="prop">frontOut</span><span class="pun">:</span> frontOut<span class="pun">.</span><span class="fn">export</span><span class="pun">(),</span> <span class="prop">backIn</span><span class="pun">:</span> backIn<span class="pun">.</span><span class="fn">export</span><span class="pun">() }</span>
+<span class="pun">}</span>`,
+
+  '粒子爆散': `<span class="kw">import</span> <span class="pun">{</span> <span class="cls">Animation</span><span class="pun">,</span> <span class="cls">AnimationTimingFunction</span> <span class="pun">}</span> <span class="kw">from</span> <span class="str">'@dp/picasso-animation'</span>
+
+<span class="cmt">// 粒子爆散：多粒子从中心向外飞散</span>
+<span class="kw">function</span> <span class="fn">buildParticleAnimation</span><span class="pun">(</span>angle<span class="pun">,</span> dist<span class="pun">) {</span>
+  <span class="kw">const</span> rad <span class="pun">=</span> angle <span class="pun">*</span> Math<span class="pun">.</span><span class="prop">PI</span> <span class="pun">/</span> <span class="num">180</span>
+  <span class="kw">const</span> tx  <span class="pun">=</span> Math<span class="pun">.</span><span class="fn">cos</span><span class="pun">(</span>rad<span class="pun">) *</span> dist
+  <span class="kw">const</span> ty  <span class="pun">=</span> Math<span class="pun">.</span><span class="fn">sin</span><span class="pun">(</span>rad<span class="pun">) *</span> dist
+  <span class="kw">const</span> anim <span class="pun">=</span> <span class="kw">new</span> <span class="cls">Animation</span><span class="pun">()</span>
+  anim<span class="pun">.</span><span class="fn">translateX</span><span class="pun">(</span>tx<span class="pun">, {</span> <span class="prop">fromValue</span><span class="pun">:</span> <span class="num">0</span><span class="pun">,</span> <span class="prop">duration</span><span class="pun">:</span> <span class="num">600</span><span class="pun">,</span>
+    <span class="prop">timingFunction</span><span class="pun">:</span> <span class="cls">AnimationTimingFunction</span><span class="pun">.</span><span class="prop">EaseOut</span>
+  <span class="pun">}).</span><span class="fn">step</span><span class="pun">()</span>
+  anim<span class="pun">.</span><span class="fn">translateY</span><span class="pun">(</span>ty<span class="pun">, {</span> <span class="prop">fromValue</span><span class="pun">:</span> <span class="num">0</span><span class="pun">,</span> <span class="prop">duration</span><span class="pun">:</span> <span class="num">600</span><span class="pun">,</span>
+    <span class="prop">timingFunction</span><span class="pun">:</span> <span class="cls">AnimationTimingFunction</span><span class="pun">.</span><span class="prop">EaseOut</span>
+  <span class="pun">}).</span><span class="fn">step</span><span class="pun">()</span>
+  anim<span class="pun">.</span><span class="fn">opacity</span><span class="pun">(</span><span class="num">0</span><span class="pun">, {</span> <span class="prop">fromValue</span><span class="pun">:</span> <span class="num">1</span><span class="pun">,</span> <span class="prop">duration</span><span class="pun">:</span> <span class="num">400</span><span class="pun">,</span> <span class="prop">delay</span><span class="pun">:</span> <span class="num">200</span><span class="pun">,</span>
+    <span class="prop">timingFunction</span><span class="pun">:</span> <span class="cls">AnimationTimingFunction</span><span class="pun">.</span><span class="prop">EaseIn</span>
+  <span class="pun">}).</span><span class="fn">step</span><span class="pun">()</span>
+  <span class="kw">return</span> anim<span class="pun">.</span><span class="fn">export</span><span class="pun">()</span>
+<span class="pun">}</span>
+<span class="cmt">// 生成8个方向的粒子</span>
+<span class="kw">const</span> particles <span class="pun">=</span> Array<span class="pun">.</span><span class="fn">from</span><span class="pun">({</span><span class="prop">length</span><span class="pun">:</span><span class="num">8</span><span class="pun">},</span> <span class="pun">(</span>_<span class="pun">,</span>i<span class="pun">) =></span> <span class="fn">buildParticleAnimation</span><span class="pun">(</span>i<span class="pun">*</span><span class="num">45</span><span class="pun">,</span> <span class="num">60</span><span class="pun">))</span>`
+}
+
+// ── 所有场景 ID 列表 ──
+const ALL_SCENES = ['sceneBounce','sceneLike','sceneBadge','sceneLoading','sceneRipple','scenePulse','sceneCounter','sceneBubble','sceneFlip','sceneParticle','sceneCustom','sceneAI']
+
+// ── 场景切换：统一入口 ──
+function switchScene(key){
+  document.getElementById('previewEmpty').style.display = 'none'
+  ALL_SCENES.forEach(id => { document.getElementById(id).style.display = 'none' })
+
+  if(key === '__AI__'){
+    document.getElementById('sceneAI').style.display = 'block'
+    return
+  }
+
+  const sceneMap = {
+    '弹跳球':   'sceneBounce',
+    '点赞心形': 'sceneLike',
+    '徽章旋转': 'sceneBadge',
+    '加载转圈': 'sceneLoading',
+    '涟漪扩散': 'sceneRipple',
+    '呼吸脉冲': 'scenePulse',
+    '数字滚动': 'sceneCounter',
+    '消息气泡': 'sceneBubble',
+    '卡片翻转': 'sceneFlip',
+    '粒子爆散': 'sceneParticle',
+    '角色动效': 'sceneBounce',
+    '渐入渐出': 'sceneRipple',
+    '自定义图片': 'sceneCustom',
+  }
+  const sceneId = sceneMap[key] || 'sceneBounce'
+  document.getElementById(sceneId).style.display = 'flex'
+
+  // 徽章场景：如有上传图片放到正面
+  if(sceneId === 'sceneBadge' && uploadedImageSrc){
+    document.getElementById('pvBadgeImg').src = uploadedImageSrc
+    document.getElementById('pvBadgeImgWrap').style.display = 'block'
+    document.getElementById('pvBadgeDefault').style.display = 'none'
+  }
+  // 加载场景：重置进度
+  if(sceneId === 'sceneLoading') initLoadingScene()
+  // 数字场景：重置计数
+  if(sceneId === 'sceneCounter') initCounterScene()
+  // 气泡场景：清空气泡
+  if(sceneId === 'sceneBubble') initBubbleScene()
+}
+
+let currentKey = ''
+
+// ══════════════════════════════════════════════════════════
+// AI 生成核心：调用 LLM 流式接口，把生成的 HTML 注入 iframe
+// ══════════════════════════════════════════════════════════
+
+const AI_SYSTEM_PROMPT = `你是一个专业的 MG 动效工程师，擅长用纯 HTML + CSS + JavaScript（Web Animations API / CSS Animations）创作精美的动效。
+
+【任务】
+根据用户描述，生成一个完整的、可独立运行的 HTML 动效页面。
+
+【输出规范】
+1. 只输出一个完整的 HTML 文档，从 <!DOCTYPE html> 开始，到 </html> 结束
+2. 不要输出任何解释、注释、markdown 代码块标记（不要 \`\`\`html）
+3. 背景必须透明（body { background: transparent; }）或使用深色背景 #0F0F1A
+4. 动效必须自动播放，循环或单次均可
+5. 如果用户提供了图片（base64），必须在动效中使用该图片作为主体元素
+6. 动效要有创意、流畅、精美，体现专业水准
+7. 可以使用 CSS keyframes、Web Animations API、requestAnimationFrame 等任何技术
+8. 页面尺寸适配 375×480 的容器，元素居中显示
+9. 如果描述中有交互需求（点击、hover等），必须实现
+10. 颜色风格参考：主色 #7C6EFA（紫）、#FF6B35（橙）、#FF4B6E（粉）、#34D399（绿）
+
+【质量要求】
+- 动效要有层次感：主体动效 + 背景装饰 + 粒子/光效
+- 缓动函数要精心设计，避免线性动画
+- 如有文字，使用系统字体 -apple-system, 'PingFang SC', sans-serif
+- 代码简洁高效，不引入外部依赖`
+
+async function triggerGenerate(){
+  const desc = document.getElementById('descInput').value.trim()
+  if(!desc){
+    document.getElementById('descInput').focus()
+    document.getElementById('descInput').style.borderColor = 'var(--pink)'
+    setTimeout(() => document.getElementById('descInput').style.borderColor = '', 1500)
+    return
+  }
+
+  const btn = document.getElementById('generateBtn')
+  const spinner = document.getElementById('btnSpinner')
+  const btnText = document.getElementById('btnText')
+  const progressWrap = document.getElementById('progressWrap')
+  const progressFill = document.getElementById('progressFill')
+  const progressText = document.getElementById('progressText')
+
+  btn.classList.add('loading')
+  spinner.style.display = 'block'
+  btnText.textContent = 'AI 生成中…'
+  progressWrap.style.display = 'flex'
+  progressFill.style.width = '5%'
+  progressText.textContent = '连接 CatDesk AI…'
+
+  // 显示 AI 场景（带 loading 遮罩）
+  switchScene('__AI__')
+  document.getElementById('aiLoadingMask').style.display = 'flex'
+  document.getElementById('aiStreamPreview').textContent = ''
+  document.getElementById('aiLoadingText').textContent = 'AI 正在生成动效…'
+
+  // 构建完整 prompt（包含系统提示 + 用户描述 + 可选图片）
+  let fullPrompt = AI_SYSTEM_PROMPT + '\n\n---\n\n用户需求：' + desc
+  if(uploadedImageSrc){
+    fullPrompt += `\n\n我上传了一张图片作为动效主体（base64如下，请在HTML中用 <img> 标签引用它）。\n图片base64：${uploadedImageSrc}`
+  }
+
+  let fullCode = ''
+  let charCount = 0
+
+  try {
+    progressFill.style.width = '15%'
+    progressText.textContent = '发送请求…'
+
+    const resp = await fetch(`${PROXY_URL}/generate`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ prompt: fullPrompt })
+    })
+
+    if(!resp.ok){
+      const errText = await resp.text()
+      throw new Error(`代理服务错误 ${resp.status}: ${errText.slice(0,200)}`)
+    }
+
+    progressFill.style.width = '30%'
+    progressText.textContent = 'AI 正在创作…'
+
+    const reader = resp.body.getReader()
+    const decoder = new TextDecoder()
+    let buffer = ''
+
+    while(true){
+      const { done, value } = await reader.read()
+      if(done) break
+
+      buffer += decoder.decode(value, { stream: true })
+      const lines = buffer.split('\n')
+      buffer = lines.pop() // 保留不完整的行
+
+      for(const line of lines){
+        const trimmed = line.trim()
+        if(!trimmed || !trimmed.startsWith('data: ')) continue
+
+        try {
+          const evt = JSON.parse(trimmed.slice(6))
+
+          // ── 新协议：CatDesk 后台模式 ──
+          if(evt.type === 'status'){
+            // 状态更新（"正在启动 CatDesk AI..." / "CatDesk 正在生成..."）
+            progressText.textContent = evt.message || 'AI 处理中…'
+            document.getElementById('aiLoadingText').textContent = evt.message || 'AI 处理中…'
+            const pct = progressFill.style.width === '15%' ? '40%' : '60%'
+            progressFill.style.width = pct
+            document.getElementById('aiStreamPreview').textContent = '⚡ CatDesk AI 正在处理，请稍候…'
+
+          } else if(evt.type === 'heartbeat'){
+            // 心跳，更新进度条动画
+            const cur = parseInt(progressFill.style.width) || 40
+            progressFill.style.width = Math.min(cur + 3, 85) + '%'
+
+          } else if(evt.type === 'result'){
+            // 新协议：Agent 返回结构化结果
+            const data = evt.data || {}
+            const jsCode = data.code || ''
+            const title = data.title || 'AI 生成动效'
+
+            if(!jsCode) throw new Error('AI 返回的代码为空')
+
+            // 包装成完整 HTML
+            const htmlCode = wrapJsToHtml(jsCode, title)
+
+            progressFill.style.width = '92%'
+            progressText.textContent = '渲染预览…'
+            document.getElementById('aiLoadingText').textContent = '渲染中…'
+
+            renderInIframe(htmlCode)
+
+            document.getElementById('outputCard').style.display = 'block'
+            document.getElementById('outputEmpty').style.display = 'none'
+            document.getElementById('outputCode').textContent = jsCode
+            document.getElementById('outputTitle').textContent = `✦ ${title}`
+
+            progressFill.style.width = '100%'
+            progressText.textContent = '✓ 生成完成！'
+
+            setTimeout(() => {
+              document.getElementById('aiLoadingMask').style.display = 'none'
+              btn.classList.remove('loading')
+              spinner.style.display = 'none'
+              btnText.textContent = '✦ 重新生成'
+              progressWrap.style.display = 'none'
+              progressFill.style.width = '0%'
+            }, 600)
+
+            addHistory(desc.slice(0, 12), '__AI__', htmlCode)
+            currentKey = '__AI__'
+
+          } else if(evt.type === 'done'){
+            // 兼容旧协议
+            if(fullCode){
+              const htmlCode = extractHTML(fullCode)
+              if(htmlCode){
+                renderInIframe(htmlCode)
+                document.getElementById('outputCard').style.display = 'block'
+                document.getElementById('outputEmpty').style.display = 'none'
+                document.getElementById('outputCode').textContent = htmlCode
+                document.getElementById('outputTitle').textContent = '✦ AI 生成 HTML 动效'
+                progressFill.style.width = '100%'
+                progressText.textContent = '✓ 生成完成！'
+                setTimeout(() => {
+                  document.getElementById('aiLoadingMask').style.display = 'none'
+                  btn.classList.remove('loading')
+                  spinner.style.display = 'none'
+                  btnText.textContent = '✦ 重新生成'
+                  progressWrap.style.display = 'none'
+                  progressFill.style.width = '0%'
+                }, 600)
+                addHistory(desc.slice(0, 12), '__AI__', htmlCode)
+                currentKey = '__AI__'
+              }
+            }
+            break
+
+          } else if(evt.type === 'chunk' && evt.text){
+            // 兼容旧协议流式输出
+            fullCode += evt.text
+            charCount += evt.text.length
+            if(charCount % 200 < evt.text.length){
+              const pct = Math.min(30 + Math.floor(charCount / 50), 88)
+              progressFill.style.width = pct + '%'
+              const lastLine = fullCode.split('\n').filter(l => l.trim()).slice(-1)[0] || ''
+              document.getElementById('aiStreamPreview').textContent = lastLine.slice(0, 60)
+            }
+
+          } else if(evt.type === 'error'){
+            const raw = evt.message || 'AI 生成失败'
+            let friendly = raw
+            if(raw.includes('429') || raw.includes('频率限制')){
+              friendly = 'AI 请求过于频繁，请稍等片刻后重试'
+            } else if(raw.includes('ssoid') || raw.includes('登录态') || raw.includes('过期')){
+              friendly = 'CatDesk 登录态已过期，请重启 CatDesk 后重试'
+            } else if(raw.includes('503') || raw.includes('not found')){
+              friendly = 'AI 引擎暂时不可用，请检查 CatDesk 是否正在运行'
+            } else if(raw.includes('timeout') || raw.includes('超时')){
+              friendly = '请求超时，请检查网络后重试'
+            }
+            throw new Error(friendly)
+          }
+        } catch(e){
+          if(e.message && !e.message.includes('JSON')) throw e
+          /* 忽略 JSON 解析错误 */
+        }
+      }
+    }
+
+  } catch(err){
+    console.error('[AI Generate]', err)
+    document.getElementById('aiLoadingText').textContent = '⚠ 生成失败'
+    document.getElementById('aiStreamPreview').textContent = err.message
+    progressText.textContent = '生成失败：' + err.message.slice(0, 40)
+    progressFill.style.width = '0%'
+    btn.classList.remove('loading')
+    spinner.style.display = 'none'
+    btnText.textContent = '✦ 重试'
+    setTimeout(() => { progressWrap.style.display = 'none' }, 4000)
+  }
+}
+
+// 把 JS 动效代码包装成完整 HTML（新协议用）
+// 注意：模板字符串里不能直接写 <script> / <\/script>，否则浏览器 HTML 解析器会提前截断
+function wrapJsToHtml(jsCode, title){
+  const st = '<scr' + 'ipt>'
+  const et = '</scr' + 'ipt>'
+  return `<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>${title || 'MG 动效'}</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;}
+body{background:#0F0F1A;display:flex;align-items:center;justify-content:center;min-height:100vh;overflow:hidden;}
+#preview-canvas{width:375px;height:480px;position:relative;overflow:hidden;}
+</style>
+</head>
+<body>
+<div id="preview-canvas"></div>
+${st}
+window.addEventListener('DOMContentLoaded', function(){
+  try{
+${jsCode}
+  }catch(e){
+    document.getElementById('preview-canvas').innerHTML='<div style="color:#ff4b6e;padding:20px;font-family:monospace;font-size:12px;">Error: '+e.message+'</div>';
+  }
+});
+${et}
+</body>
+</html>`
+}
+
+// 从 LLM 输出中提取 HTML（处理可能带 markdown 代码块的情况）
+function extractHTML(raw){
+  // 去掉 markdown 代码块
+  let code = raw.trim()
+  const mdMatch = code.match(/```(?:html)?\s*([\s\S]*?)```/)
+  if(mdMatch) code = mdMatch[1].trim()
+  // 找到 <!DOCTYPE 或 <html 开头
+  const start = code.search(/<(!DOCTYPE|html)/i)
+  if(start > 0) code = code.slice(start)
+  // 找到 </html> 结尾
+  const end = code.lastIndexOf('</html>')
+  if(end > 0) code = code.slice(0, end + 7)
+  return code.includes('<') ? code : ''
+}
+
+// 把 HTML 代码注入 iframe
+function renderInIframe(html){
+  const iframe = document.getElementById('aiPreviewFrame')
+  const blob = new Blob([html], { type: 'text/html; charset=utf-8' })
+  const url = URL.createObjectURL(blob)
+  // 释放旧的 blob URL
+  if(iframe._blobUrl) URL.revokeObjectURL(iframe._blobUrl)
+  iframe._blobUrl = url
+  iframe.src = url
+}
+
+// ── 降级路径：AI 不可用时走预设场景 ──
+function triggerGenerateFallback(desc){
+  const btn = document.getElementById('generateBtn')
+  const spinner = document.getElementById('btnSpinner')
+  const btnText = document.getElementById('btnText')
+  const progressWrap = document.getElementById('progressWrap')
+  const progressFill = document.getElementById('progressFill')
+  const progressText = document.getElementById('progressText')
+
+  btn.classList.add('loading')
+  spinner.style.display = 'block'
+  btnText.textContent = '生成中…'
+  progressWrap.style.display = 'flex'
+
+  // 提示用户
+  const tip = document.createElement('div')
+  tip.style.cssText = 'position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:rgba(124,110,250,0.15);border:1px solid rgba(124,110,250,0.3);border-radius:12px;padding:10px 20px;font-size:12px;color:var(--accent2);z-index:9998;backdrop-filter:blur(8px);white-space:nowrap;'
+  tip.innerHTML = '💡 AI 引擎繁忙，当前使用预设模式'
+  document.body.appendChild(tip)
+  setTimeout(() => tip.remove(), 4000)
+
+  const steps = [
+    [300, 20, '正在分析描述…'],
+    [700, 55, '匹配动效模板…'],
+    [1200, 85, '渲染预览…'],
+    [1500, 100, '完成！'],
+  ]
+  steps.forEach(([t, p, msg]) => {
+    setTimeout(() => { progressFill.style.width = p + '%'; progressText.textContent = msg }, t)
+  })
+
+  const hasImage = !!uploadedImageSrc
+  const matchKey = inferAnimType(desc)
+  currentKey = hasImage ? '自定义图片' : matchKey
+
+  setTimeout(() => {
+    btn.classList.remove('loading')
+    spinner.style.display = 'none'
+    btnText.textContent = '✦ 重新生成'
+    progressWrap.style.display = 'none'
+    progressFill.style.width = '0%'
+
+    if(hasImage){
+      const animType = inferCustomAnimType(desc)
+      initCustomScene(uploadedImageSrc, animType, desc)
+      switchScene('自定义图片')
+      document.getElementById('outputCard').style.display = 'block'
+      document.getElementById('outputEmpty').style.display = 'none'
+      document.getElementById('outputCode').innerHTML = buildCustomCode(animType, desc)
+      addHistory(desc.slice(0,12), '自定义图片')
+    } else {
+      switchScene(matchKey)
+      document.getElementById('outputCard').style.display = 'block'
+      document.getElementById('outputEmpty').style.display = 'none'
+      document.getElementById('outputCode').innerHTML = CODES[matchKey] || CODES['自定义']
+      addHistory(desc.slice(0,12), matchKey)
+    }
+  }, 1700)
+}
+
+const ANIM_ICONS = {
+  '弹跳球':'⚽','点赞心形':'❤️','徽章旋转':'🏅',
+  '加载转圈':'⏳','涟漪扩散':'💧','呼吸脉冲':'💜',
+  '数字滚动':'🔢','消息气泡':'💬','卡片翻转':'🃏','粒子爆散':'🎉',
+  '角色动效':'🐼','渐入渐出':'🌅','自定义图片':'🖼️','__AI__':'✦',
+}
+
+// AI 历史记录：存储生成的 HTML 代码
+const aiHistoryStore = {}
+
+function addHistory(name, key, htmlCode){
+  const list = document.getElementById('historyList')
+  const item = document.createElement('div')
+  item.className = 'history-item'
+  const badge = key === '__AI__'
+    ? '<span class="history-badge" style="background:linear-gradient(135deg,var(--accent),var(--pink));color:#fff;">AI</span>'
+    : '<span class="history-badge tag-js">JS</span>'
+  item.innerHTML = `<div class="history-thumb">${ANIM_ICONS[key]||'✦'}</div><div class="history-info"><div class="history-name">${name}</div><div class="history-time">刚刚</div></div>${badge}`
+  const histId = Date.now()
+  if(key === '__AI__' && htmlCode) aiHistoryStore[histId] = htmlCode
+  item.onclick = () => loadHistory(key, histId)
+  list.insertBefore(item, list.firstChild)
+  while(list.children.length > 8) list.removeChild(list.lastChild)
+}
+
+function loadHistory(key, histId){
+  if(key === '__AI__'){
+    const html = aiHistoryStore[histId]
+    if(html){
+      switchScene('__AI__')
+      document.getElementById('aiLoadingMask').style.display = 'none'
+      renderInIframe(html)
+      document.getElementById('outputCard').style.display = 'block'
+      document.getElementById('outputEmpty').style.display = 'none'
+      document.getElementById('outputCode').textContent = html
+      document.getElementById('outputTitle').textContent = '✦ AI 生成 HTML 动效'
+    }
+    return
+  }
+  switchScene(key)
+  document.getElementById('outputCard').style.display = 'block'
+  document.getElementById('outputEmpty').style.display = 'none'
+  document.getElementById('outputCode').innerHTML = CODES[key] || CODES['自定义']
+}
+
+// ── 预览区徽章动效：点击 720° + hover 倾斜（移植自 ball-bounce-preview.html）──
+let pvBadgeSpinning = false
+let pvBadgeHovered  = false
+
+function triggerPreviewBadgeSpin(){
+  if(pvBadgeSpinning || pvBadgeHovered) return
+  pvBadgeSpinning = true
+
+  const card   = document.getElementById('pvBadgeCard')
+  const shadow = document.getElementById('pvBadgeShadow')
+  const sheen  = document.getElementById('pvBadgeSheen')
+
+  // 旋转时隐藏扫光
+  sheen.style.animation = 'none'
+  sheen.style.opacity   = '0'
+
+  const anim = card.animate([
+    { transform:'rotateY(0deg)' },
+    { transform:'rotateY(720deg)' },
+  ], { duration:1100, easing:'cubic-bezier(0.25,0.1,0.2,1)', fill:'forwards' })
+
+  // 投影同步
+  shadow.animate([
+    { transform:'translateX(-50%) scaleX(1)',   opacity:0.7 },
+    { transform:'translateX(-50%) scaleX(0.3)', opacity:0.2, offset:0.25 },
+    { transform:'translateX(-50%) scaleX(1)',   opacity:0.7, offset:0.5  },
+    { transform:'translateX(-50%) scaleX(0.3)', opacity:0.2, offset:0.75 },
+    { transform:'translateX(-50%) scaleX(1)',   opacity:0.7 },
+  ], { duration:1100, easing:'linear', fill:'forwards' })
+
+  anim.onfinish = () => {
+    card.style.transform = 'rotateY(0deg)'
+    // 恢复扫光
+    sheen.style.animation = 'pv-sheen-idle 3s ease-in-out infinite'
+    sheen.style.opacity   = ''
+    pvBadgeSpinning = false
+  }
+}
+
+// Hover 倾斜跟随
+const pvBadgeScene = document.getElementById('sceneBadge')
+pvBadgeScene.addEventListener('mouseenter', () => { if(!pvBadgeSpinning) pvBadgeHovered = true })
+pvBadgeScene.addEventListener('mouseleave', () => {
+  pvBadgeHovered = false
+  const card = document.getElementById('pvBadgeCard')
+  card.style.transition = 'transform 0.4s cubic-bezier(0.25,0.46,0.45,0.94)'
+  card.style.transform  = 'rotateY(0deg) rotateX(0deg)'
+  setTimeout(() => { card.style.transition = ''; card.style.transform = '' }, 420)
+})
+pvBadgeScene.addEventListener('mousemove', (e) => {
+  if(!pvBadgeHovered || pvBadgeSpinning) return
+  const card = document.getElementById('pvBadgeCard')
+  const rect  = pvBadgeScene.getBoundingClientRect()
+  const cx    = rect.left + rect.width  / 2
+  const cy    = rect.top  + rect.height / 2
+  const nx    = (e.clientX - cx) / (rect.width  / 2)
+  const ny    = (e.clientY - cy) / (rect.height / 2)
+  card.style.transition = 'transform 0.06s ease-out'
+  card.style.transform  = `rotateY(${nx*30}deg) rotateX(${-ny*15}deg)`
+})
+
+// ── 素材库 ──
+function useLibItem(el){
+  const name     = el.dataset.name     || ''
+  const desc     = el.dataset.desc     || ''
+  const duration = el.dataset.duration || '—'
+  const playmode = el.dataset.playmode || '循环'
+  const easing   = el.dataset.easing   || 'EaseOut'
+
+  // 选中高亮
+  document.querySelectorAll('.lib-item').forEach(i => {
+    i.style.outline = ''
+    i.style.boxShadow = ''
+  })
+  el.style.outline = '2px solid var(--accent)'
+  el.style.boxShadow = '0 0 0 4px rgba(124,110,250,0.15)'
+
+  // 填入描述框
+  document.getElementById('descInput').value = desc
+
+  // 更新右侧参数面板
+  document.getElementById('paramName').textContent     = name
+  document.getElementById('paramDuration').textContent = duration
+  document.getElementById('paramEasing').textContent   = easing
+  document.getElementById('paramPlayMode').textContent = playmode
+
+  // 同步缓动按钮选中状态
+  document.querySelectorAll('.field .style-tag').forEach(btn => {
+    if(btn.textContent === easing) btn.classList.add('active')
+    else btn.classList.remove('active')
+  })
+
+  // 切换预览区到对应场景
+  switchScene(name)
+
+  // 更新右侧输出结果
+  const code = CODES[name] || CODES['自定义'] || ''
+  document.getElementById('outputCard').style.display  = 'block'
+  document.getElementById('outputEmpty').style.display = 'none'
+  document.getElementById('outputCode').innerHTML      = code
+  document.getElementById('outputTitle').textContent   = name + ' · ' + duration
+
+  currentKey = name
+
+  // 滚动右侧面板到顶部，让参数可见
+  document.querySelector('.panel-right').scrollTo({ top: 0, behavior: 'smooth' })
+}
+
+function filterLib(el, cat){
+  document.querySelectorAll('.lib-tab').forEach(t => t.classList.remove('active'))
+  el.classList.add('active')
+  document.querySelectorAll('.lib-item').forEach(item => {
+    item.style.display = (cat === 'all' || item.dataset.cat === cat) ? '' : 'none'
+  })
+}
+
+// ── 复制/下载 ──
+function copyOutput(){
+  const code = document.getElementById('outputCode').innerText
+  navigator.clipboard.writeText(code).then(() => {
+    const btn = event.target
+    btn.textContent = '已复制 ✓'
+    btn.style.color = 'var(--green)'
+    setTimeout(() => { btn.textContent = '复制'; btn.style.color = '' }, 2000)
+  })
+}
+function downloadOutput(){
+  const code = document.getElementById('outputCode').innerText
+  const isAI = currentKey === '__AI__'
+  const blob = new Blob([code], { type: isAI ? 'text/html' : 'text/javascript' })
+  const a = document.createElement('a')
+  a.href = URL.createObjectURL(blob)
+  a.download = isAI ? 'ai-animation.html' : (currentKey || 'animation') + '.js'
+  a.click()
+}
+
+function openHistory(){
+  document.querySelector('.panel-right').scrollTo({top:9999,behavior:'smooth'})
+}
+
+// ── 语义推断动效类型 ──
+function inferAnimType(desc){
+  const d = desc.toLowerCase()
+
+  // 心形 / 点赞 / 收藏 / 喜欢
+  if(/心|点赞|like|爱心|收藏|喜欢|favorite|love|❤|♥/.test(d)) return '点赞心形'
+
+  // 徽章 / 旋转 / 扫光 / 奖章 / 勋章 / 金币 / 奖杯
+  if(/徽章|旋转|扫光|奖章|勋章|金币|奖杯|medal|badge|spin|trophy/.test(d)) return '徽章旋转'
+
+  // 加载 / 转圈 / 进度 / 等待 / 读取
+  if(/加载|转圈|loading|spinner|等待|进度|读取|progress|circle/.test(d)) return '加载转圈'
+
+  // 涟漪 / 水波 / 扩散 / 波纹 / 点击反馈
+  if(/涟漪|水波|扩散|波纹|ripple|wave|点击反馈|水面/.test(d)) return '涟漪扩散'
+
+  // 呼吸 / 脉冲 / 心跳 / 发光 / 闪烁 / 光晕
+  if(/呼吸|脉冲|心跳|发光|闪烁|光晕|pulse|glow|breath|beat/.test(d)) return '呼吸脉冲'
+
+  // 数字 / 计数 / 分数 / 积分 / 滚动数字 / 跳动
+  if(/数字|计数|分数|积分|滚动数字|跳动|counter|score|number|digit/.test(d)) return '数字滚动'
+
+  // 消息 / 气泡 / 聊天 / 对话 / 弹出 / 通知
+  if(/消息|气泡|聊天|对话|弹出|通知|bubble|chat|message|pop/.test(d)) return '消息气泡'
+
+  // 卡片翻转 / 翻牌 / 正反面 / 翻页
+  if(/卡片翻转|翻牌|正反面|翻页|flip|card/.test(d)) return '卡片翻转'
+
+  // 粒子 / 爆散 / 爆炸 / 烟花 / 庆祝 / 撒花 / 礼花
+  if(/粒子|爆散|爆炸|烟花|庆祝|撒花|礼花|particle|burst|confetti|firework|celebrate/.test(d)) return '粒子爆散'
+
+  // 弹跳 / 球 / 落下 / 重力 / 弹性
+  if(/弹跳|弹起|落下|小球|bounce|ball|重力|弹性/.test(d)) return '弹跳球'
+
+  // 渐入 / 淡入 / 出现 / 入场 / 滑入
+  if(/渐入|淡入|出现|fade|入场|滑入|appear|slide/.test(d)) return '涟漪扩散'
+
+  // 打招呼 / 挥手 / 角色 / 卡通 / IP
+  if(/打招呼|招手|挥手|摇头|眨眼|点头|摆动|晃动|小熊|熊猫|角色|卡通|ip形象|character/.test(d)) return '角色动效'
+
+  // 默认：根据是否有上传图片决定
+  return uploadedImageSrc ? '粒子爆散' : '弹跳球'
+}
+
+// ══════════════════════════════════════════
+// SCENE 4 · 加载转圈
+// ══════════════════════════════════════════
+let loadingProgress = 0
+let loadingTimer = null
+let loadingSpeed = 1   // 1=慢 2=中 3=快
+const LOADING_SPEEDS = [1, 2, 3]
+
+function initLoadingScene(){
+  loadingProgress = 0
+  clearInterval(loadingTimer)
+  document.getElementById('loadingPct').textContent = '0%'
+  document.getElementById('loadingArc').style.animationDuration = '1s'
+  startLoadingProgress()
+}
+
+function startLoadingProgress(){
+  clearInterval(loadingTimer)
+  const increment = loadingSpeed * 0.4
+  loadingTimer = setInterval(() => {
+    loadingProgress = Math.min(100, loadingProgress + increment)
+    document.getElementById('loadingPct').textContent = Math.floor(loadingProgress) + '%'
+    // 更新弧度 dashoffset：188 = 2πr，0%→188，100%→0
+    const arc = document.querySelector('#loadingArc circle')
+    if(arc) arc.setAttribute('stroke-dashoffset', String(188 - (188 * loadingProgress / 100)))
+    if(loadingProgress >= 100){
+      clearInterval(loadingTimer)
+      // 完成动效：中心点放大闪烁
+      const dot = document.getElementById('loadingDot')
+      dot.animate([
+        {transform:'translate(-50%,-50%) scale(1)',boxShadow:'0 0 12px var(--accent)'},
+        {transform:'translate(-50%,-50%) scale(2.5)',boxShadow:'0 0 40px var(--accent)',opacity:0.8},
+        {transform:'translate(-50%,-50%) scale(1)',boxShadow:'0 0 12px var(--accent)',opacity:1},
+      ],{duration:600,easing:'ease-out'})
+      // 1.5s 后重置
+      setTimeout(() => { loadingProgress = 0; startLoadingProgress() }, 1500)
+    }
+  }, 30)
+}
+
+function triggerLoadingClick(){
+  // 循环切换速度
+  const idx = LOADING_SPEEDS.indexOf(loadingSpeed)
+  loadingSpeed = LOADING_SPEEDS[(idx + 1) % LOADING_SPEEDS.length]
+  const durations = ['1.2s','0.7s','0.35s']
+  document.getElementById('loadingArc').style.animationDuration = durations[LOADING_SPEEDS.indexOf(loadingSpeed)]
+  // 速度提示
+  const pct = document.getElementById('loadingPct')
+  const labels = ['慢速','中速','快速']
+  const orig = pct.textContent
+  pct.textContent = labels[LOADING_SPEEDS.indexOf(loadingSpeed)]
+  pct.style.fontSize = '16px'
+  setTimeout(() => { pct.textContent = orig; pct.style.fontSize = '' }, 800)
+}
+
+// ══════════════════════════════════════════
+// SCENE 5 · 涟漪扩散
+// ══════════════════════════════════════════
+const RIPPLE_COLORS = ['rgba(0,212,255,0.6)','rgba(255,107,53,0.6)','rgba(168,85,247,0.6)','rgba(52,211,153,0.6)','rgba(255,75,110,0.6)']
+let rippleColorIdx = 0
+
+function triggerRippleClick(e){
+  const container = document.getElementById('rippleContainer')
+  const rect = container.getBoundingClientRect()
+  const x = e.clientX - rect.left
+  const y = e.clientY - rect.top
+  const color = RIPPLE_COLORS[rippleColorIdx % RIPPLE_COLORS.length]
+  rippleColorIdx++
+
+  // 创建3层涟漪
+  for(let i = 0; i < 3; i++){
+    const ring = document.createElement('div')
+    ring.style.cssText = `
+      position:absolute;border-radius:50%;
+      border:2px solid ${color};
+      width:20px;height:20px;
+      left:${x - 10}px;top:${y - 10}px;
+      pointer-events:none;
+    `
+    container.appendChild(ring)
+    const maxSize = 200 + i * 60
+    ring.animate([
+      {transform:'scale(1)',opacity:0.9},
+      {transform:`scale(${maxSize/20})`,opacity:0},
+    ],{duration:800 + i*200, delay:i*120, easing:'ease-out', fill:'forwards'})
+    setTimeout(() => ring.remove(), 1200 + i*200)
+  }
+}
+
+// ══════════════════════════════════════════
+// SCENE 6 · 呼吸脉冲
+// ══════════════════════════════════════════
+const PULSE_THEMES = [
+  {core:'radial-gradient(circle at 40% 35%,#d8b4fe,#a855f7 60%,#7c3aed)',glow:'rgba(168,85,247,0.6)',ring:'rgba(168,85,247',label:'BREATHING'},
+  {core:'radial-gradient(circle at 40% 35%,#fca5a5,#ef4444 60%,#b91c1c)',glow:'rgba(239,68,68,0.6)',ring:'rgba(239,68,68',label:'HEARTBEAT'},
+  {core:'radial-gradient(circle at 40% 35%,#6ee7b7,#10b981 60%,#065f46)',glow:'rgba(16,185,129,0.6)',ring:'rgba(16,185,129',label:'ALIVE'},
+  {core:'radial-gradient(circle at 40% 35%,#93c5fd,#3b82f6 60%,#1d4ed8)',glow:'rgba(59,130,246,0.6)',ring:'rgba(59,130,246',label:'PULSE'},
+]
+let pulseThemeIdx = 0
+
+function triggerPulseClick(){
+  pulseThemeIdx = (pulseThemeIdx + 1) % PULSE_THEMES.length
+  const t = PULSE_THEMES[pulseThemeIdx]
+  const core = document.getElementById('pulseCore')
+  const label = document.getElementById('pulseLabel')
+  const rings = [document.getElementById('pulseRing1'),document.getElementById('pulseRing2'),document.getElementById('pulseRing3')]
+
+  core.style.background = t.core
+  core.style.boxShadow = `0 0 30px ${t.glow}`
+  label.textContent = t.label
+  label.style.color = t.glow
+
+  rings.forEach(r => {
+    r.style.borderColor = `${t.ring},0.4)`
+  })
+
+  // 爆发动效
+  core.animate([
+    {transform:'scale(1)'},
+    {transform:'scale(1.4)',boxShadow:`0 0 60px ${t.glow}`},
+    {transform:'scale(1)'},
+  ],{duration:400,easing:'ease-out'})
+}
+
+// ══════════════════════════════════════════
+// SCENE 7 · 数字滚动
+// ══════════════════════════════════════════
+let counterValue = 0
+let counterAnimating = false
+
+function initCounterScene(){
+  counterValue = 0
+  counterAnimating = false
+  ;['cDigit0','cDigit1','cDigit2','cDigit3'].forEach(id => {
+    const el = document.getElementById(id)
+    if(el){ el.textContent = '0'; el.style.transform = '' }
+  })
+  const plus = document.getElementById('counterPlus')
+  if(plus){ plus.style.opacity = '0'; plus.style.animation = '' }
+}
+
+function triggerCounterClick(){
+  if(counterAnimating) return
+  counterAnimating = true
+  const add = Math.floor(Math.random() * 900) + 100  // 100~999
+  const newVal = Math.min(9999, counterValue + add)
+  const oldStr = String(counterValue).padStart(4,'0')
+  const newStr = String(newVal).padStart(4,'0')
+  counterValue = newVal
+
+  // 逐位滚动
+  const ids = ['cDigit0','cDigit1','cDigit2','cDigit3']
+  ids.forEach((id, i) => {
+    if(oldStr[i] !== newStr[i]){
+      const el = document.getElementById(id)
+      const delay = i * 60
+      setTimeout(() => {
+        el.animate([
+          {transform:'translateY(0)',opacity:1},
+          {transform:'translateY(-100%)',opacity:0},
+        ],{duration:150,delay:0,easing:'ease-in',fill:'forwards'})
+        setTimeout(() => {
+          el.textContent = newStr[i]
+          el.animate([
+            {transform:'translateY(100%)',opacity:0},
+            {transform:'translateY(-4px)',opacity:1,offset:0.7},
+            {transform:'translateY(0)',opacity:1},
+          ],{duration:220,easing:'ease-out',fill:'forwards'})
+        }, 150)
+      }, delay)
+    }
+  })
+
+  // +N 浮动
+  const plus = document.getElementById('counterPlus')
+  plus.textContent = '+' + add
+  plus.style.animation = 'none'
+  plus.style.opacity = '1'
+  plus.style.transform = 'translateY(0)'
+  requestAnimationFrame(() => {
+    plus.animate([
+      {transform:'translateY(0)',opacity:1},
+      {transform:'translateY(-44px)',opacity:0},
+    ],{duration:700,easing:'ease-out',fill:'forwards'})
+  })
+
+  setTimeout(() => { counterAnimating = false }, 500)
+}
+
+// ══════════════════════════════════════════
+// SCENE 8 · 消息气泡
+// ══════════════════════════════════════════
+const BUBBLE_PRESETS = ['你好！👋','这个动效不错','再来一条消息','MG 动效真好玩 🎉','点击发送试试']
+let bubblePresetIdx = 0
+let bubbleCount = 0
+
+function initBubbleScene(){
+  bubbleCount = 0
+  const list = document.getElementById('bubbleList')
+  if(list) list.innerHTML = ''
+  const input = document.getElementById('bubbleInput')
+  if(input) input.textContent = ''
+  // 自动发一条欢迎消息
+  setTimeout(() => addBubble('Hi，点击发送消息 👋', false), 300)
+}
+
+function sendBubble(){
+  const input = document.getElementById('bubbleInput')
+  const text = input.textContent.trim() || BUBBLE_PRESETS[bubblePresetIdx++ % BUBBLE_PRESETS.length]
+  input.textContent = ''
+  addBubble(text, true)
+  // 模拟回复
+  setTimeout(() => {
+    const replies = ['收到！✅','好的 👍','动效生成中…','这个效果很棒！','再发一条试试？']
+    addBubble(replies[Math.floor(Math.random()*replies.length)], false)
+  }, 600 + Math.random()*400)
+}
+
+function addBubble(text, isRight){
+  const list = document.getElementById('bubbleList')
+  bubbleCount++
+  // 超过6条删最旧的
+  if(bubbleCount > 6){
+    const first = list.firstChild
+    if(first){ first.animate([{opacity:1,transform:'translateX(0)'},{opacity:0,transform:'translateX(-20px)'}],{duration:200,fill:'forwards'}).onfinish=()=>first.remove() }
+  }
+  const wrap = document.createElement('div')
+  wrap.style.cssText = `display:flex;justify-content:${isRight?'flex-end':'flex-start'};`
+  const bubble = document.createElement('div')
+  bubble.textContent = text
+  bubble.style.cssText = `
+    max-width:75%;padding:8px 12px;border-radius:${isRight?'14px 14px 4px 14px':'14px 14px 14px 4px'};
+    font-size:13px;line-height:1.4;word-break:break-all;
+    background:${isRight?'linear-gradient(135deg,var(--accent),var(--accent2))':'rgba(255,255,255,0.1)'};
+    color:${isRight?'#fff':'rgba(255,255,255,0.85)'};
+    border:${isRight?'none':'1px solid rgba(255,255,255,0.12)'};
+    animation:${isRight?'bubble-in-right':'bubble-in'} 0.4s cubic-bezier(0.34,1.56,0.64,1) both;
+  `
+  wrap.appendChild(bubble)
+  list.appendChild(wrap)
+  list.scrollTop = list.scrollHeight
+}
+
+// ══════════════════════════════════════════
+// SCENE 9 · 卡片翻转
+// ══════════════════════════════════════════
+let flipCardFlipped = false
+
+function triggerFlipCard(){
+  flipCardFlipped = !flipCardFlipped
+  const inner = document.getElementById('flipCardInner')
+  inner.style.transform = flipCardFlipped ? 'rotateY(180deg)' : 'rotateY(0deg)'
+}
+
+// ══════════════════════════════════════════
+// SCENE 10 · 粒子爆散
+// ══════════════════════════════════════════
+const BURST_PALETTES = [
+  ['#FF6B35','#FF9A6C','#FFD166','#FF4B6E','#FF8FAB'],
+  ['#00D4FF','#7C6EFA','#A855F7','#34D399','#60A5FA'],
+  ['#FFD700','#FF6B35','#FF4B6E','#FF8FAB','#FFB347'],
+  ['#34D399','#10B981','#6EE7B7','#00D4FF','#93C5FD'],
+]
+let burstPaletteIdx = 0
+
+function triggerParticleBurst(e){
+  const field = document.getElementById('particleField')
+  const rect = field.getBoundingClientRect()
+  const cx = e.clientX - rect.left
+  const cy = e.clientY - rect.top
+  const palette = BURST_PALETTES[burstPaletteIdx++ % BURST_PALETTES.length]
+
+  // 按钮弹跳
+  const btn = document.getElementById('particleBtn')
+  btn.animate([
+    {transform:'scale(1)'},
+    {transform:'scale(0.88)'},
+    {transform:'scale(1.12)'},
+    {transform:'scale(1)'},
+  ],{duration:300,easing:'ease-out'})
+
+  // 生成粒子
+  const count = 20 + Math.floor(Math.random()*12)
+  for(let i = 0; i < count; i++){
+    const p = document.createElement('div')
+    const size = 4 + Math.random() * 8
+    const color = palette[Math.floor(Math.random()*palette.length)]
+    const isSquare = Math.random() > 0.6
+    p.style.cssText = `
+      position:absolute;
+      width:${size}px;height:${size}px;
+      background:${color};
+      border-radius:${isSquare?'2px':'50%'};
+      left:${cx - size/2}px;top:${cy - size/2}px;
+      pointer-events:none;
+    `
+    field.appendChild(p)
+    const angle = (Math.random() * 360) * Math.PI / 180
+    const dist = 40 + Math.random() * 120
+    const tx = Math.cos(angle) * dist
+    const ty = Math.sin(angle) * dist
+    const rot = (Math.random()-0.5) * 720
+    p.animate([
+      {transform:`translate(0,0) rotate(0deg) scale(1)`,opacity:1},
+      {transform:`translate(${tx*0.6}px,${ty*0.6}px) rotate(${rot*0.5}deg) scale(1.2)`,opacity:1,offset:0.3},
+      {transform:`translate(${tx}px,${ty}px) rotate(${rot}deg) scale(0.2)`,opacity:0},
+    ],{duration:600+Math.random()*400, delay:i*15, easing:'ease-out', fill:'forwards'})
+    setTimeout(() => p.remove(), 1200)
+  }
+}
+
+// ══════════════════════════════════════════════════════════
+// SCENE 11 · 自定义图片动效引擎
+// ══════════════════════════════════════════════════════════
+
+// ── 动效类型定义 ──
+const CUSTOM_ANIM_TYPES = {
+  wave:    { label:'挥手摆动',  icon:'👋' },
+  float:   { label:'悬浮漂移',  icon:'🌊' },
+  bounce:  { label:'弹跳落地',  icon:'⬇️' },
+  spin:    { label:'旋转展示',  icon:'🔄' },
+  pulse:   { label:'呼吸脉冲',  icon:'💫' },
+  shake:   { label:'摇晃抖动',  icon:'📳' },
+  zoom:    { label:'缩放弹出',  icon:'🔍' },
+  slide:   { label:'滑入登场',  icon:'➡️' },
+  flip:    { label:'翻转亮相',  icon:'🔃' },
+  dance:   { label:'律动跳舞',  icon:'💃' },
+  fall:    { label:'飘落下坠',  icon:'🍂' },
+  explode: { label:'爆炸散开',  icon:'💥' },
+}
+
+// ── 从描述推断自定义动效类型 ──
+function inferCustomAnimType(desc){
+  const d = desc.toLowerCase()
+  if(/挥手|挥动|招手|摆手|wave|hello|hi|打招呼/.test(d))           return 'wave'
+  if(/跳舞|律动|舞动|dance|摇摆|扭动/.test(d))                     return 'dance'
+  if(/弹跳|跳跃|蹦跳|bounce|jump|弹起|落地/.test(d))               return 'bounce'
+  if(/旋转|转动|spin|rotate|360|自转/.test(d))                     return 'spin'
+  if(/翻转|翻身|flip|翻面|翻滚/.test(d))                           return 'flip'
+  if(/抖动|摇晃|震动|shake|颤抖|抖/.test(d))                       return 'shake'
+  if(/呼吸|脉冲|发光|pulse|glow|心跳|闪烁/.test(d))                return 'pulse'
+  if(/漂浮|悬浮|浮动|float|飘动|上下浮/.test(d))                   return 'float'
+  if(/滑入|飞入|出现|slide|入场|登场|进入/.test(d))                 return 'slide'
+  if(/放大|弹出|zoom|缩放|出现|弹跳出/.test(d))                     return 'zoom'
+  if(/飘落|下落|fall|坠落|飘下|落下/.test(d))                      return 'fall'
+  if(/爆炸|爆散|explode|炸开|散开|消失/.test(d))                   return 'explode'
+  // 默认：浮动
+  return 'float'
+}
+
+// ── 当前自定义动效状态 ──
+let customAnimType = 'float'
+let customAnimLoop = null
+let customAnimRunning = false
+
+// ── 初始化自定义场景 ──
+function initCustomScene(imgSrc, animType, desc){
+  customAnimType = animType
+  customAnimRunning = false
+  if(customAnimLoop){ clearInterval(customAnimLoop); customAnimLoop = null }
+
+  // 设置图片
+  const img = document.getElementById('customImg')
+  img.src = imgSrc
+
+  // 更新类型标签
+  const typeInfo = CUSTOM_ANIM_TYPES[animType] || {label:'自定义',icon:'✨'}
+  document.getElementById('customAnimType').textContent = typeInfo.icon + ' ' + typeInfo.label
+
+  // 清空装饰层
+  document.getElementById('customDecoLayer').innerHTML = ''
+  document.getElementById('customArmLayer').innerHTML = ''
+
+  // 重置图片样式
+  img.style.transform = ''
+  img.style.filter = 'drop-shadow(0 8px 24px rgba(0,0,0,0.5))'
+  img.style.animation = ''
+
+  // 自动播放一次
+  setTimeout(() => triggerCustomAnim(), 200)
+}
+
+// ── 触发/重播动效 ──
+function triggerCustomAnim(){
+  if(customAnimRunning) return
+  customAnimRunning = true
+
+  const img = document.getElementById('customImg')
+  const wrap = document.getElementById('customImgWrap')
+  const deco = document.getElementById('customDecoLayer')
+
+  // 先停止所有进行中的动画
+  img.getAnimations().forEach(a => a.cancel())
+
+  switch(customAnimType){
+
+    // ── 挥手摆动 ──
+    case 'wave': {
+      // 整体轻微上下浮动
+      img.animate([
+        {transform:'translateY(0px) rotate(0deg)'},
+        {transform:'translateY(-6px) rotate(2deg)'},
+        {transform:'translateY(0px) rotate(0deg)'},
+        {transform:'translateY(-4px) rotate(-1.5deg)'},
+        {transform:'translateY(0px) rotate(0deg)'},
+      ],{duration:1800, easing:'ease-in-out', iterations:2})
+      // 右上角挥手粒子
+      spawnWaveParticles(deco)
+      setTimeout(() => { customAnimRunning = false }, 3800)
+      break
+    }
+
+    // ── 律动跳舞 ──
+    case 'dance': {
+      img.animate([
+        {transform:'translateX(0) rotate(0deg) scaleX(1)'},
+        {transform:'translateX(-12px) rotate(-8deg) scaleX(0.95)'},
+        {transform:'translateX(0) rotate(0deg) scaleX(1)'},
+        {transform:'translateX(12px) rotate(8deg) scaleX(0.95)'},
+        {transform:'translateX(0) rotate(0deg) scaleX(1)'},
+        {transform:'translateX(-8px) rotate(-5deg) scaleX(0.97)'},
+        {transform:'translateX(0) rotate(0deg) scaleX(1)'},
+        {transform:'translateX(8px) rotate(5deg) scaleX(0.97)'},
+        {transform:'translateX(0) rotate(0deg) scaleX(1)'},
+      ],{duration:1600, easing:'ease-in-out', iterations:2})
+      spawnMusicNotes(deco)
+      setTimeout(() => { customAnimRunning = false }, 3400)
+      break
+    }
+
+    // ── 弹跳落地 ──
+    case 'bounce': {
+      const rect = wrap.getBoundingClientRect()
+      img.animate([
+        {transform:'translateY(-160px) scaleY(1) scaleX(1)', offset:0},
+        {transform:'translateY(0px) scaleY(0.7) scaleX(1.3)', offset:0.45, easing:'cubic-bezier(0.55,0,0.45,1)'},
+        {transform:'translateY(-60px) scaleY(1) scaleX(1)', offset:0.65},
+        {transform:'translateY(0px) scaleY(0.85) scaleX(1.15)', offset:0.78},
+        {transform:'translateY(-20px) scaleY(1) scaleX(1)', offset:0.88},
+        {transform:'translateY(0px) scaleY(1) scaleX(1)', offset:1},
+      ],{duration:1200, easing:'ease-in', fill:'forwards'})
+      // 落地冲击波
+      setTimeout(() => spawnImpactRings(deco), 540)
+      setTimeout(() => { customAnimRunning = false }, 1400)
+      break
+    }
+
+    // ── 旋转展示 ──
+    case 'spin': {
+      img.animate([
+        {transform:'rotateY(0deg) scale(1)'},
+        {transform:'rotateY(180deg) scale(0.85)', offset:0.5},
+        {transform:'rotateY(360deg) scale(1)'},
+      ],{duration:1200, easing:'cubic-bezier(0.25,0.1,0.2,1)', fill:'forwards'})
+      // 扫光
+      spawnSweepLight(deco)
+      setTimeout(() => { customAnimRunning = false }, 1400)
+      break
+    }
+
+    // ── 翻转亮相 ──
+    case 'flip': {
+      img.animate([
+        {transform:'rotateX(0deg) scale(1)'},
+        {transform:'rotateX(90deg) scale(0.8)', offset:0.4},
+        {transform:'rotateX(-15deg) scale(1.05)', offset:0.7},
+        {transform:'rotateX(5deg) scale(0.98)', offset:0.85},
+        {transform:'rotateX(0deg) scale(1)'},
+      ],{duration:900, easing:'ease-out', fill:'forwards'})
+      setTimeout(() => { customAnimRunning = false }, 1100)
+      break
+    }
+
+    // ── 摇晃抖动 ──
+    case 'shake': {
+      img.animate([
+        {transform:'translateX(0) rotate(0deg)'},
+        {transform:'translateX(-10px) rotate(-4deg)'},
+        {transform:'translateX(10px) rotate(4deg)'},
+        {transform:'translateX(-8px) rotate(-3deg)'},
+        {transform:'translateX(8px) rotate(3deg)'},
+        {transform:'translateX(-5px) rotate(-2deg)'},
+        {transform:'translateX(5px) rotate(2deg)'},
+        {transform:'translateX(-2px) rotate(-1deg)'},
+        {transform:'translateX(0) rotate(0deg)'},
+      ],{duration:700, easing:'ease-out', fill:'forwards'})
+      setTimeout(() => { customAnimRunning = false }, 900)
+      break
+    }
+
+    // ── 呼吸脉冲 ──
+    case 'pulse': {
+      img.animate([
+        {transform:'scale(1)', filter:'drop-shadow(0 8px 24px rgba(0,0,0,0.5)) brightness(1)'},
+        {transform:'scale(1.1)', filter:'drop-shadow(0 12px 40px rgba(124,110,250,0.8)) brightness(1.15)', offset:0.5},
+        {transform:'scale(1)', filter:'drop-shadow(0 8px 24px rgba(0,0,0,0.5)) brightness(1)'},
+      ],{duration:1000, easing:'ease-in-out', iterations:3})
+      spawnGlowRings(deco)
+      setTimeout(() => { customAnimRunning = false }, 3200)
+      break
+    }
+
+    // ── 悬浮漂移 ──
+    case 'float': {
+      img.animate([
+        {transform:'translateY(0px) rotate(0deg)'},
+        {transform:'translateY(-14px) rotate(1.5deg)'},
+        {transform:'translateY(-8px) rotate(-0.5deg)'},
+        {transform:'translateY(-16px) rotate(1deg)'},
+        {transform:'translateY(0px) rotate(0deg)'},
+      ],{duration:2400, easing:'ease-in-out', iterations:2})
+      spawnFloatParticles(deco)
+      setTimeout(() => { customAnimRunning = false }, 5000)
+      break
+    }
+
+    // ── 滑入登场 ──
+    case 'slide': {
+      img.animate([
+        {transform:'translateX(200px) opacity(0)', opacity:0},
+        {transform:'translateX(-12px)', opacity:1, offset:0.7},
+        {transform:'translateX(5px)', offset:0.85},
+        {transform:'translateX(0)', opacity:1},
+      ],{duration:700, easing:'ease-out', fill:'forwards'})
+      setTimeout(() => { customAnimRunning = false }, 900)
+      break
+    }
+
+    // ── 缩放弹出 ──
+    case 'zoom': {
+      img.animate([
+        {transform:'scale(0) rotate(-10deg)', opacity:0},
+        {transform:'scale(1.15) rotate(3deg)', opacity:1, offset:0.6},
+        {transform:'scale(0.95) rotate(-1deg)', offset:0.8},
+        {transform:'scale(1) rotate(0deg)', opacity:1},
+      ],{duration:600, easing:'ease-out', fill:'forwards'})
+      spawnZoomRings(deco)
+      setTimeout(() => { customAnimRunning = false }, 800)
+      break
+    }
+
+    // ── 飘落下坠 ──
+    case 'fall': {
+      img.animate([
+        {transform:'translateY(-200px) rotate(-15deg)', opacity:0},
+        {transform:'translateY(10px) rotate(5deg)', opacity:1, offset:0.7},
+        {transform:'translateY(-5px) rotate(-2deg)', offset:0.85},
+        {transform:'translateY(0) rotate(0deg)', opacity:1},
+      ],{duration:900, easing:'ease-in', fill:'forwards'})
+      spawnLeafParticles(deco)
+      setTimeout(() => { customAnimRunning = false }, 1100)
+      break
+    }
+
+    // ── 爆炸散开 ──
+    case 'explode': {
+      img.animate([
+        {transform:'scale(1)', opacity:1},
+        {transform:'scale(1.3)', opacity:0.8, offset:0.3},
+        {transform:'scale(0)', opacity:0},
+      ],{duration:500, easing:'ease-in', fill:'forwards'})
+      spawnExplosionParticles(deco)
+      // 1.2s 后图片复原
+      setTimeout(() => {
+        img.animate([
+          {transform:'scale(0)', opacity:0},
+          {transform:'scale(1.1)', opacity:1, offset:0.7},
+          {transform:'scale(1)', opacity:1},
+        ],{duration:400, easing:'ease-out', fill:'forwards'})
+      }, 1200)
+      setTimeout(() => { customAnimRunning = false }, 1800)
+      break
+    }
+
+    default:
+      customAnimRunning = false
+  }
+}
+
+// ── 粒子/装饰辅助函数 ──
+
+function spawnWaveParticles(container){
+  const emojis = ['👋','✨','⭐','💫','🌟']
+  for(let i=0;i<6;i++){
+    const el = document.createElement('div')
+    el.textContent = emojis[i % emojis.length]
+    el.style.cssText = `position:absolute;font-size:${16+Math.random()*12}px;
+      left:${55+Math.random()*30}%;top:${10+Math.random()*30}%;
+      pointer-events:none;`
+    container.appendChild(el)
+    el.animate([
+      {transform:'translate(0,0) scale(0) rotate(0deg)',opacity:0},
+      {transform:`translate(${(Math.random()-0.5)*60}px,${-30-Math.random()*40}px) scale(1) rotate(${(Math.random()-0.5)*40}deg)`,opacity:1,offset:0.4},
+      {transform:`translate(${(Math.random()-0.5)*80}px,${-60-Math.random()*60}px) scale(0.5) rotate(${(Math.random()-0.5)*80}deg)`,opacity:0},
+    ],{duration:1200+Math.random()*600,delay:i*120,easing:'ease-out',fill:'forwards'})
+    setTimeout(()=>el.remove(),2000)
+  }
+}
+
+function spawnMusicNotes(container){
+  const notes = ['♪','♫','🎵','🎶','♩']
+  for(let i=0;i<8;i++){
+    const el = document.createElement('div')
+    el.textContent = notes[i%notes.length]
+    el.style.cssText = `position:absolute;font-size:${14+Math.random()*10}px;
+      left:${20+Math.random()*60}%;top:${20+Math.random()*40}%;
+      pointer-events:none;color:rgba(255,255,255,0.8);`
+    container.appendChild(el)
+    el.animate([
+      {transform:'translate(0,0) scale(0)',opacity:0},
+      {transform:`translate(${(Math.random()-0.5)*50}px,${-40-Math.random()*60}px) scale(1)`,opacity:1,offset:0.5},
+      {transform:`translate(${(Math.random()-0.5)*70}px,${-80-Math.random()*80}px) scale(0.3)`,opacity:0},
+    ],{duration:1400+Math.random()*400,delay:i*100,easing:'ease-out',fill:'forwards'})
+    setTimeout(()=>el.remove(),2200)
+  }
+}
+
+function spawnImpactRings(container){
+  for(let i=0;i<3;i++){
+    const ring = document.createElement('div')
+    ring.style.cssText = `position:absolute;border-radius:50%;
+      border:2px solid rgba(255,107,53,${0.7-i*0.2});
+      width:20px;height:20px;
+      left:50%;top:75%;transform:translate(-50%,-50%);
+      pointer-events:none;`
+    container.appendChild(ring)
+    const size = 80+i*50
+    ring.animate([
+      {transform:'translate(-50%,-50%) scale(1)',opacity:0.8},
+      {transform:`translate(-50%,-50%) scale(${size/20})`,opacity:0},
+    ],{duration:600+i*150,delay:i*80,easing:'ease-out',fill:'forwards'})
+    setTimeout(()=>ring.remove(),1000)
+  }
+}
+
+function spawnSweepLight(container){
+  const sweep = document.createElement('div')
+  sweep.style.cssText = `position:absolute;inset:0;border-radius:12px;
+    background:linear-gradient(105deg,transparent 0%,rgba(255,255,255,0) 30%,rgba(255,255,255,0.5) 50%,rgba(255,255,255,0) 70%,transparent 100%);
+    pointer-events:none;`
+  container.appendChild(sweep)
+  sweep.animate([
+    {transform:'translateX(-100%) skewX(-12deg)',opacity:0},
+    {transform:'translateX(-30%) skewX(-12deg)',opacity:1,offset:0.1},
+    {transform:'translateX(150%) skewX(-12deg)',opacity:0},
+  ],{duration:800,easing:'ease-in-out',fill:'forwards'})
+  setTimeout(()=>sweep.remove(),1000)
+}
+
+function spawnGlowRings(container){
+  for(let i=0;i<3;i++){
+    const ring = document.createElement('div')
+    ring.style.cssText = `position:absolute;border-radius:50%;
+      border:2px solid rgba(124,110,250,${0.6-i*0.15});
+      width:60px;height:60px;
+      left:50%;top:50%;transform:translate(-50%,-50%);
+      pointer-events:none;`
+    container.appendChild(ring)
+    ring.animate([
+      {transform:'translate(-50%,-50%) scale(1)',opacity:0.8},
+      {transform:'translate(-50%,-50%) scale(3.5)',opacity:0},
+    ],{duration:1800,delay:i*600,easing:'ease-out',iterations:3,fill:'forwards'})
+    setTimeout(()=>ring.remove(),6000)
+  }
+}
+
+function spawnFloatParticles(container){
+  const colors = ['rgba(124,110,250,0.7)','rgba(167,139,250,0.6)','rgba(255,255,255,0.4)','rgba(0,212,255,0.5)']
+  for(let i=0;i<10;i++){
+    const p = document.createElement('div')
+    const size = 3+Math.random()*5
+    p.style.cssText = `position:absolute;border-radius:50%;
+      width:${size}px;height:${size}px;
+      background:${colors[Math.floor(Math.random()*colors.length)]};
+      left:${20+Math.random()*60}%;top:${30+Math.random()*50}%;
+      pointer-events:none;`
+    container.appendChild(p)
+    p.animate([
+      {transform:'translateY(0) scale(1)',opacity:0},
+      {transform:`translateY(${-20-Math.random()*40}px) scale(1.2)`,opacity:0.8,offset:0.3},
+      {transform:`translateY(${-50-Math.random()*60}px) scale(0.3)`,opacity:0},
+    ],{duration:2000+Math.random()*1000,delay:i*200,easing:'ease-out',fill:'forwards'})
+    setTimeout(()=>p.remove(),4000)
+  }
+}
+
+function spawnZoomRings(container){
+  for(let i=0;i<2;i++){
+    const ring = document.createElement('div')
+    ring.style.cssText = `position:absolute;border-radius:50%;
+      border:3px solid rgba(255,107,53,${0.7-i*0.3});
+      width:40px;height:40px;
+      left:50%;top:50%;transform:translate(-50%,-50%);
+      pointer-events:none;`
+    container.appendChild(ring)
+    ring.animate([
+      {transform:'translate(-50%,-50%) scale(0)',opacity:1},
+      {transform:'translate(-50%,-50%) scale(4)',opacity:0},
+    ],{duration:500,delay:i*100,easing:'ease-out',fill:'forwards'})
+    setTimeout(()=>ring.remove(),700)
+  }
+}
+
+function spawnLeafParticles(container){
+  const emojis = ['🍂','🍃','🌿','✨','⭐']
+  for(let i=0;i<5;i++){
+    const el = document.createElement('div')
+    el.textContent = emojis[i%emojis.length]
+    el.style.cssText = `position:absolute;font-size:${12+Math.random()*10}px;
+      left:${10+Math.random()*80}%;top:${-5}%;
+      pointer-events:none;`
+    container.appendChild(el)
+    el.animate([
+      {transform:`translateY(0) rotate(0deg)`,opacity:0},
+      {transform:`translateY(${100+Math.random()*80}px) rotate(${(Math.random()-0.5)*180}deg)`,opacity:0.8,offset:0.5},
+      {transform:`translateY(${200+Math.random()*100}px) rotate(${(Math.random()-0.5)*360}deg)`,opacity:0},
+    ],{duration:1200+Math.random()*600,delay:i*100,easing:'ease-in',fill:'forwards'})
+    setTimeout(()=>el.remove(),2000)
+  }
+}
+
+function spawnExplosionParticles(container){
+  const colors = ['#FF6B35','#FF4B6E','#FFD166','#7C6EFA','#34D399','#00D4FF','#FF9A6C','#A855F7']
+  const count = 24
+  for(let i=0;i<count;i++){
+    const p = document.createElement('div')
+    const size = 5+Math.random()*8
+    const isSquare = Math.random()>0.5
+    p.style.cssText = `position:absolute;
+      width:${size}px;height:${size}px;
+      background:${colors[Math.floor(Math.random()*colors.length)]};
+      border-radius:${isSquare?'2px':'50%'};
+      left:50%;top:50%;
+      pointer-events:none;`
+    container.appendChild(p)
+    const angle = (i/count)*360*Math.PI/180
+    const dist = 60+Math.random()*100
+    const tx = Math.cos(angle)*dist
+    const ty = Math.sin(angle)*dist
+    p.animate([
+      {transform:`translate(-50%,-50%) scale(0)`,opacity:1},
+      {transform:`translate(calc(-50% + ${tx}px),calc(-50% + ${ty}px)) scale(1.2)`,opacity:1,offset:0.35},
+      {transform:`translate(calc(-50% + ${tx*1.4}px),calc(-50% + ${ty*1.4}px)) scale(0.1)`,opacity:0},
+    ],{duration:700+Math.random()*300,delay:i*10,easing:'ease-out',fill:'forwards'})
+    setTimeout(()=>p.remove(),1200)
+  }
+}
+
+// ── 生成 Picasso 代码（基于图片动效类型）──
+function buildCustomCode(animType, desc){
+  const codeMap = {
+    wave: `<span class="kw">import</span> <span class="pun">{</span> <span class="cls">Animation</span><span class="pun">,</span> <span class="cls">AnimationTimingFunction</span> <span class="pun">}</span> <span class="kw">from</span> <span class="str">'@dp/picasso-animation'</span>
+
+<span class="cmt">// 挥手摆动动效 — 基于描述：${desc.slice(0,30)}</span>
+<span class="kw">function</span> <span class="fn">buildWaveAnimation</span><span class="pun">() {</span>
+  <span class="kw">const</span> floatAnim <span class="pun">=</span> <span class="kw">new</span> <span class="cls">Animation</span><span class="pun">()</span>
+  floatAnim<span class="pun">.</span><span class="fn">translateY</span><span class="pun">(-</span><span class="num">6</span><span class="pun">, {</span> <span class="prop">fromValue</span><span class="pun">:</span> <span class="num">0</span><span class="pun">,</span> <span class="prop">duration</span><span class="pun">:</span> <span class="num">900</span><span class="pun">,</span>
+    <span class="prop">timingFunction</span><span class="pun">:</span> <span class="cls">AnimationTimingFunction</span><span class="pun">.</span><span class="prop">EaseInOut</span><span class="pun">,</span>
+    <span class="prop">repeatCount</span><span class="pun">:</span> <span class="num">-1</span><span class="pun">,</span> <span class="prop">autoreverses</span><span class="pun">:</span> <span class="kw">true</span>
+  <span class="pun">}).</span><span class="fn">step</span><span class="pun">()</span>
+  <span class="kw">const</span> rotateAnim <span class="pun">=</span> <span class="kw">new</span> <span class="cls">Animation</span><span class="pun">()</span>
+  rotateAnim<span class="pun">.</span><span class="fn">rotate</span><span class="pun">(</span><span class="num">2</span><span class="pun">, {</span> <span class="prop">fromValue</span><span class="pun">: -</span><span class="num">2</span><span class="pun">,</span> <span class="prop">duration</span><span class="pun">:</span> <span class="num">600</span><span class="pun">,</span>
+    <span class="prop">timingFunction</span><span class="pun">:</span> <span class="cls">AnimationTimingFunction</span><span class="pun">.</span><span class="prop">EaseInOut</span><span class="pun">,</span>
+    <span class="prop">repeatCount</span><span class="pun">:</span> <span class="num">-1</span><span class="pun">,</span> <span class="prop">autoreverses</span><span class="pun">:</span> <span class="kw">true</span>
+  <span class="pun">}).</span><span class="fn">step</span><span class="pun">()</span>
+  <span class="kw">return</span> <span class="pun">{</span> <span class="prop">float</span><span class="pun">:</span> floatAnim<span class="pun">.</span><span class="fn">export</span><span class="pun">(),</span> <span class="prop">rotate</span><span class="pun">:</span> rotateAnim<span class="pun">.</span><span class="fn">export</span><span class="pun">() }</span>
+<span class="pun">}</span>`,
+
+    float: `<span class="kw">import</span> <span class="pun">{</span> <span class="cls">Animation</span><span class="pun">,</span> <span class="cls">AnimationTimingFunction</span> <span class="pun">}</span> <span class="kw">from</span> <span class="str">'@dp/picasso-animation'</span>
+
+<span class="cmt">// 悬浮漂移动效 — 基于描述：${desc.slice(0,30)}</span>
+<span class="kw">function</span> <span class="fn">buildFloatAnimation</span><span class="pun">() {</span>
+  <span class="kw">const</span> anim <span class="pun">=</span> <span class="kw">new</span> <span class="cls">Animation</span><span class="pun">()</span>
+  anim<span class="pun">.</span><span class="fn">translateY</span><span class="pun">(-</span><span class="num">14</span><span class="pun">, {</span> <span class="prop">fromValue</span><span class="pun">:</span> <span class="num">0</span><span class="pun">,</span> <span class="prop">duration</span><span class="pun">:</span> <span class="num">1200</span><span class="pun">,</span>
+    <span class="prop">timingFunction</span><span class="pun">:</span> <span class="cls">AnimationTimingFunction</span><span class="pun">.</span><span class="prop">EaseInOut</span><span class="pun">,</span>
+    <span class="prop">repeatCount</span><span class="pun">:</span> <span class="num">-1</span><span class="pun">,</span> <span class="prop">autoreverses</span><span class="pun">:</span> <span class="kw">true</span>
+  <span class="pun">}).</span><span class="fn">step</span><span class="pun">()</span>
+  anim<span class="pun">.</span><span class="fn">rotate</span><span class="pun">(</span><span class="num">1.5</span><span class="pun">, {</span> <span class="prop">fromValue</span><span class="pun">: -</span><span class="num">1.5</span><span class="pun">,</span> <span class="prop">duration</span><span class="pun">:</span> <span class="num">1800</span><span class="pun">,</span>
+    <span class="prop">timingFunction</span><span class="pun">:</span> <span class="cls">AnimationTimingFunction</span><span class="pun">.</span><span class="prop">EaseInOut</span><span class="pun">,</span>
+    <span class="prop">repeatCount</span><span class="pun">:</span> <span class="num">-1</span><span class="pun">,</span> <span class="prop">autoreverses</span><span class="pun">:</span> <span class="kw">true</span>
+  <span class="pun">}).</span><span class="fn">step</span><span class="pun">()</span>
+  <span class="kw">return</span> anim<span class="pun">.</span><span class="fn">export</span><span class="pun">()</span>
+<span class="pun">}</span>`,
+
+    bounce: `<span class="kw">import</span> <span class="pun">{</span> <span class="cls">Animation</span><span class="pun">,</span> <span class="cls">AnimationTimingFunction</span> <span class="pun">}</span> <span class="kw">from</span> <span class="str">'@dp/picasso-animation'</span>
+
+<span class="cmt">// 弹跳落地动效 — 基于描述：${desc.slice(0,30)}</span>
+<span class="kw">function</span> <span class="fn">buildBounceAnimation</span><span class="pun">() {</span>
+  <span class="kw">const</span> anim <span class="pun">=</span> <span class="kw">new</span> <span class="cls">Animation</span><span class="pun">()</span>
+  anim<span class="pun">.</span><span class="fn">translateY</span><span class="pun">(</span><span class="num">0</span><span class="pun">, {</span> <span class="prop">fromValue</span><span class="pun">: -</span><span class="num">160</span><span class="pun">,</span> <span class="prop">duration</span><span class="pun">:</span> <span class="num">540</span><span class="pun">,</span>
+    <span class="prop">timingFunction</span><span class="pun">:</span> <span class="cls">AnimationTimingFunction</span><span class="pun">.</span><span class="prop">EaseIn</span>
+  <span class="pun">}).</span><span class="fn">step</span><span class="pun">()</span>
+  anim<span class="pun">.</span><span class="fn">scaleY</span><span class="pun">(</span><span class="num">0.7</span><span class="pun">, {</span> <span class="prop">duration</span><span class="pun">:</span> <span class="num">80</span><span class="pun">,</span> <span class="prop">timingFunction</span><span class="pun">:</span> <span class="cls">AnimationTimingFunction</span><span class="pun">.</span><span class="prop">Linear</span> <span class="pun">})</span>
+     <span class="pun">.</span><span class="fn">scaleX</span><span class="pun">(</span><span class="num">1.3</span><span class="pun">, {</span> <span class="prop">duration</span><span class="pun">:</span> <span class="num">80</span><span class="pun">,</span> <span class="prop">timingFunction</span><span class="pun">:</span> <span class="cls">AnimationTimingFunction</span><span class="pun">.</span><span class="prop">Linear</span> <span class="pun">}).</span><span class="fn">step</span><span class="pun">()</span>
+  anim<span class="pun">.</span><span class="fn">translateY</span><span class="pun">(-</span><span class="num">60</span><span class="pun">, {</span> <span class="prop">duration</span><span class="pun">:</span> <span class="num">300</span><span class="pun">,</span> <span class="prop">timingFunction</span><span class="pun">:</span> <span class="cls">AnimationTimingFunction</span><span class="pun">.</span><span class="prop">EaseOut</span> <span class="pun">}).</span><span class="fn">step</span><span class="pun">()</span>
+  anim<span class="pun">.</span><span class="fn">translateY</span><span class="pun">(</span><span class="num">0</span><span class="pun">, {</span> <span class="prop">duration</span><span class="pun">:</span> <span class="num">200</span><span class="pun">,</span> <span class="prop">timingFunction</span><span class="pun">:</span> <span class="cls">AnimationTimingFunction</span><span class="pun">.</span><span class="prop">EaseIn</span> <span class="pun">}).</span><span class="fn">step</span><span class="pun">()</span>
+  <span class="kw">return</span> anim<span class="pun">.</span><span class="fn">export</span><span class="pun">()</span>
+<span class="pun">}</span>`,
+
+    spin: `<span class="kw">import</span> <span class="pun">{</span> <span class="cls">Animation</span><span class="pun">,</span> <span class="cls">AnimationTimingFunction</span> <span class="pun">}</span> <span class="kw">from</span> <span class="str">'@dp/picasso-animation'</span>
+
+<span class="cmt">// 旋转展示动效 — 基于描述：${desc.slice(0,30)}</span>
+<span class="kw">function</span> <span class="fn">buildSpinAnimation</span><span class="pun">() {</span>
+  <span class="kw">const</span> anim <span class="pun">=</span> <span class="kw">new</span> <span class="cls">Animation</span><span class="pun">()</span>
+  anim<span class="pun">.</span><span class="fn">rotateY</span><span class="pun">(</span><span class="num">360</span><span class="pun">, {</span> <span class="prop">fromValue</span><span class="pun">:</span> <span class="num">0</span><span class="pun">,</span> <span class="prop">duration</span><span class="pun">:</span> <span class="num">1200</span><span class="pun">,</span>
+    <span class="prop">timingFunction</span><span class="pun">:</span> <span class="cls">AnimationTimingFunction</span><span class="pun">.</span><span class="prop">EaseInOut</span>
+  <span class="pun">}).</span><span class="fn">step</span><span class="pun">()</span>
+  <span class="kw">return</span> anim<span class="pun">.</span><span class="fn">export</span><span class="pun">()</span>
+<span class="pun">}</span>`,
+
+    shake: `<span class="kw">import</span> <span class="pun">{</span> <span class="cls">Animation</span><span class="pun">,</span> <span class="cls">AnimationTimingFunction</span> <span class="pun">}</span> <span class="kw">from</span> <span class="str">'@dp/picasso-animation'</span>
+
+<span class="cmt">// 摇晃抖动动效 — 基于描述：${desc.slice(0,30)}</span>
+<span class="kw">function</span> <span class="fn">buildShakeAnimation</span><span class="pun">() {</span>
+  <span class="kw">const</span> anim <span class="pun">=</span> <span class="kw">new</span> <span class="cls">Animation</span><span class="pun">()</span>
+  <span class="kw">const</span> offsets <span class="pun">= [-</span><span class="num">10</span><span class="pun">,</span><span class="num">10</span><span class="pun">,-</span><span class="num">8</span><span class="pun">,</span><span class="num">8</span><span class="pun">,-</span><span class="num">5</span><span class="pun">,</span><span class="num">5</span><span class="pun">,-</span><span class="num">2</span><span class="pun">,</span><span class="num">0</span><span class="pun">]</span>
+  offsets<span class="pun">.</span><span class="fn">forEach</span><span class="pun">(</span>x <span class="pun">=></span> anim<span class="pun">.</span><span class="fn">translateX</span><span class="pun">(</span>x<span class="pun">, {</span> <span class="prop">duration</span><span class="pun">:</span> <span class="num">80</span><span class="pun">,</span>
+    <span class="prop">timingFunction</span><span class="pun">:</span> <span class="cls">AnimationTimingFunction</span><span class="pun">.</span><span class="prop">EaseOut</span>
+  <span class="pun">}).</span><span class="fn">step</span><span class="pun">())</span>
+  <span class="kw">return</span> anim<span class="pun">.</span><span class="fn">export</span><span class="pun">()</span>
+<span class="pun">}</span>`,
+
+    dance: `<span class="kw">import</span> <span class="pun">{</span> <span class="cls">Animation</span><span class="pun">,</span> <span class="cls">AnimationTimingFunction</span> <span class="pun">}</span> <span class="kw">from</span> <span class="str">'@dp/picasso-animation'</span>
+
+<span class="cmt">// 律动跳舞动效 — 基于描述：${desc.slice(0,30)}</span>
+<span class="kw">function</span> <span class="fn">buildDanceAnimation</span><span class="pun">() {</span>
+  <span class="kw">const</span> anim <span class="pun">=</span> <span class="kw">new</span> <span class="cls">Animation</span><span class="pun">()</span>
+  anim<span class="pun">.</span><span class="fn">translateX</span><span class="pun">(-</span><span class="num">12</span><span class="pun">, {</span> <span class="prop">fromValue</span><span class="pun">:</span> <span class="num">0</span><span class="pun">,</span> <span class="prop">duration</span><span class="pun">:</span> <span class="num">200</span><span class="pun">,</span>
+    <span class="prop">timingFunction</span><span class="pun">:</span> <span class="cls">AnimationTimingFunction</span><span class="pun">.</span><span class="prop">EaseInOut</span>
+  <span class="pun">}).</span><span class="fn">step</span><span class="pun">()</span>
+  anim<span class="pun">.</span><span class="fn">rotate</span><span class="pun">(-</span><span class="num">8</span><span class="pun">, {</span> <span class="prop">duration</span><span class="pun">:</span> <span class="num">200</span><span class="pun">,</span> <span class="prop">timingFunction</span><span class="pun">:</span> <span class="cls">AnimationTimingFunction</span><span class="pun">.</span><span class="prop">EaseInOut</span> <span class="pun">}).</span><span class="fn">step</span><span class="pun">()</span>
+  anim<span class="pun">.</span><span class="fn">translateX</span><span class="pun">(</span><span class="num">12</span><span class="pun">, {</span> <span class="prop">duration</span><span class="pun">:</span> <span class="num">200</span><span class="pun">,</span> <span class="prop">timingFunction</span><span class="pun">:</span> <span class="cls">AnimationTimingFunction</span><span class="pun">.</span><span class="prop">EaseInOut</span> <span class="pun">}).</span><span class="fn">step</span><span class="pun">()</span>
+  anim<span class="pun">.</span><span class="fn">rotate</span><span class="pun">(</span><span class="num">8</span><span class="pun">, {</span> <span class="prop">duration</span><span class="pun">:</span> <span class="num">200</span><span class="pun">,</span> <span class="prop">timingFunction</span><span class="pun">:</span> <span class="cls">AnimationTimingFunction</span><span class="pun">.</span><span class="prop">EaseInOut</span> <span class="pun">}).</span><span class="fn">step</span><span class="pun">()</span>
+  anim<span class="pun">.</span><span class="fn">translateX</span><span class="pun">(</span><span class="num">0</span><span class="pun">, {</span> <span class="prop">duration</span><span class="pun">:</span> <span class="num">200</span><span class="pun">,</span> <span class="prop">timingFunction</span><span class="pun">:</span> <span class="cls">AnimationTimingFunction</span><span class="pun">.</span><span class="prop">EaseInOut</span> <span class="pun">}).</span><span class="fn">step</span><span class="pun">()</span>
+  <span class="kw">return</span> anim<span class="pun">.</span><span class="fn">export</span><span class="pun">()</span>
+<span class="pun">}</span>`,
+  }
+
+  const typeInfo = CUSTOM_ANIM_TYPES[animType] || {label:'自定义',icon:'✨'}
+  const fallback = `<span class="kw">import</span> <span class="pun">{</span> <span class="cls">Animation</span><span class="pun">,</span> <span class="cls">AnimationTimingFunction</span> <span class="pun">}</span> <span class="kw">from</span> <span class="str">'@dp/picasso-animation'</span>
+
+<span class="cmt">// ${typeInfo.icon} ${typeInfo.label}动效 — 基于描述：${desc.slice(0,30)}</span>
+<span class="kw">function</span> <span class="fn">buildCustomAnimation</span><span class="pun">() {</span>
+  <span class="kw">const</span> anim <span class="pun">=</span> <span class="kw">new</span> <span class="cls">Animation</span><span class="pun">()</span>
+  anim<span class="pun">.</span><span class="fn">translateY</span><span class="pun">(-</span><span class="num">10</span><span class="pun">, {</span> <span class="prop">fromValue</span><span class="pun">:</span> <span class="num">0</span><span class="pun">,</span> <span class="prop">duration</span><span class="pun">:</span> <span class="num">1000</span><span class="pun">,</span>
+    <span class="prop">timingFunction</span><span class="pun">:</span> <span class="cls">AnimationTimingFunction</span><span class="pun">.</span><span class="prop">EaseInOut</span><span class="pun">,</span>
+    <span class="prop">repeatCount</span><span class="pun">:</span> <span class="num">-1</span><span class="pun">,</span> <span class="prop">autoreverses</span><span class="pun">:</span> <span class="kw">true</span>
+  <span class="pun">}).</span><span class="fn">step</span><span class="pun">()</span>
+  <span class="kw">return</span> anim<span class="pun">.</span><span class="fn">export</span><span class="pun">()</span>
+<span class="pun">}</span>`
+
+  return codeMap[animType] || fallback
+}
+
+// （覆盖层方案已移除，改用场景切换）
+</script>
+</body>
+</html>
