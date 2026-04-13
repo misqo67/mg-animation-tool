@@ -2347,9 +2347,15 @@ async function triggerGenerate(){
       // 进度条动画
       const cur = parseInt(progressFill.style.width) || 30
       progressFill.style.width = Math.min(cur + 2, 88) + '%'
-      if(pollCount % 5 === 0){
-        document.getElementById('aiStreamPreview').textContent = `AI 处理中… (${Math.floor(pollCount*2)}s)`
-      }
+      const elapsed = Math.floor(pollCount * 2)
+      const tips = [
+        '分析动效需求…', '构思动画逻辑…', '编写动效代码…',
+        '优化动画曲线…', '调整时序参数…', '完善交互细节…',
+        '生成预览代码…', '即将完成…'
+      ]
+      const tip = tips[Math.min(Math.floor(pollCount / 3), tips.length - 1)]
+      document.getElementById('aiLoadingText').textContent = `⚡ ${tip}`
+      document.getElementById('aiStreamPreview').textContent = `已等待 ${elapsed}s，大模型生成通常需要 40-60s`
 
       let pollResp
       try {
