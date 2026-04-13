@@ -1578,8 +1578,8 @@ function getProxyUrl() {
   const saved = localStorage.getItem('mg_proxy_url')
   if (saved) return saved.replace(/\/$/, '')
   if (location.protocol === 'file:' || location.hostname === '') return 'http://127.0.0.1:7788'
-  // 从 pages.dev 或其他静态托管访问时，没有后端，需要用户配置
-  if (location.hostname.includes('pages.dev') || location.hostname.includes('github.io')) return ''
+  // 从 pages.dev 或自定义域名访问时，默认使用固定后端地址
+  if (location.hostname.includes('pages.dev') || location.hostname.includes('mgtools.org') || location.hostname.includes('github.io')) return 'https://proxy.mgtools.org'
   return location.origin  // 从 proxy 本身访问（同域）
 }
 let PROXY_URL = getProxyUrl()
