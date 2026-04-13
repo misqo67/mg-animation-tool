@@ -2316,6 +2316,7 @@ async function triggerGenerate(){
     progressFill.style.width = '15%'
     progressText.textContent = '发送请求…'
 
+    // ── 轮询模式（兼容 Cloudflare Tunnel，避免 SSE 缓冲问题）──
     const resp = await fetch(`${PROXY_URL}/generate`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -2327,136 +2328,87 @@ async function triggerGenerate(){
       throw new Error(`代理服务错误 ${resp.status}: ${errText.slice(0,200)}`)
     }
 
+    const submitData = await resp.json()
+    const taskId = submitData.task_id
+    if(!taskId) throw new Error('任务提交失败，未获取到 task_id')
+
     progressFill.style.width = '30%'
     progressText.textContent = 'AI 正在创作…'
+    document.getElementById('aiLoadingText').textContent = '⚡ CatDesk AI 正在处理，请稍候…'
+    document.getElementById('aiStreamPreview').textContent = '任务已提交，等待结果…'
 
-    const reader = resp.body.getReader()
-    const decoder = new TextDecoder()
-    let buffer = ''
+    // 轮询 /result/<task_id>，最多等 5 分钟
+    const deadline = Date.now() + 300000
+    let pollCount = 0
+    while(Date.now() < deadline){
+      await new Promise(r => setTimeout(r, 2000))
+      pollCount++
 
-    while(true){
-      const { done, value } = await reader.read()
-      if(done) break
+      // 进度条动画
+      const cur = parseInt(progressFill.style.width) || 30
+      progressFill.style.width = Math.min(cur + 2, 88) + '%'
+      if(pollCount % 5 === 0){
+        document.getElementById('aiStreamPreview').textContent = `AI 处理中… (${Math.floor(pollCount*2)}s)`
+      }
 
-      buffer += decoder.decode(value, { stream: true })
-      const lines = buffer.split('\n')
-      buffer = lines.pop() // 保留不完整的行
+      let pollResp
+      try {
+        pollResp = await fetch(`${PROXY_URL}/result/${taskId}`, { signal: AbortSignal.timeout(8000) })
+      } catch(e) { continue }
 
-      for(const line of lines){
-        const trimmed = line.trim()
-        if(!trimmed || !trimmed.startsWith('data: ')) continue
+      if(!pollResp.ok) continue
+      const pollData = await pollResp.json()
 
-        try {
-          const evt = JSON.parse(trimmed.slice(6))
+      if(pollData.status === 'pending') continue
 
-          // ── 新协议：CatDesk 后台模式 ──
-          if(evt.type === 'status'){
-            // 状态更新（"正在启动 CatDesk AI..." / "CatDesk 正在生成..."）
-            progressText.textContent = evt.message || 'AI 处理中…'
-            document.getElementById('aiLoadingText').textContent = evt.message || 'AI 处理中…'
-            const pct = progressFill.style.width === '15%' ? '40%' : '60%'
-            progressFill.style.width = pct
-            document.getElementById('aiStreamPreview').textContent = '⚡ CatDesk AI 正在处理，请稍候…'
+      if(pollData.status === 'error'){
+        const raw = pollData.message || 'AI 生成失败'
+        let friendly = raw
+        if(raw.includes('429') || raw.includes('频率限制')) friendly = 'AI 请求过于频繁，请稍等片刻后重试'
+        else if(raw.includes('ssoid') || raw.includes('登录态') || raw.includes('过期')) friendly = 'CatDesk 登录态已过期，请重启 CatDesk 后重试'
+        else if(raw.includes('503') || raw.includes('not found')) friendly = 'AI 引擎暂时不可用，请检查 CatDesk 是否正在运行'
+        else if(raw.includes('timeout') || raw.includes('超时')) friendly = '请求超时，请检查网络后重试'
+        throw new Error(friendly)
+      }
 
-          } else if(evt.type === 'heartbeat'){
-            // 心跳，更新进度条动画
-            const cur = parseInt(progressFill.style.width) || 40
-            progressFill.style.width = Math.min(cur + 3, 85) + '%'
+      if(pollData.status === 'done'){
+        const data = pollData.data || {}
+        const jsCode = data.code || ''
+        const title = data.title || 'AI 生成动效'
 
-          } else if(evt.type === 'result'){
-            // 新协议：Agent 返回结构化结果
-            const data = evt.data || {}
-            const jsCode = data.code || ''
-            const title = data.title || 'AI 生成动效'
+        if(!jsCode) throw new Error('AI 返回的代码为空')
 
-            if(!jsCode) throw new Error('AI 返回的代码为空')
+        const htmlCode = wrapJsToHtml(jsCode, title)
 
-            // 包装成完整 HTML
-            const htmlCode = wrapJsToHtml(jsCode, title)
+        progressFill.style.width = '92%'
+        progressText.textContent = '渲染预览…'
+        document.getElementById('aiLoadingText').textContent = '渲染中…'
 
-            progressFill.style.width = '92%'
-            progressText.textContent = '渲染预览…'
-            document.getElementById('aiLoadingText').textContent = '渲染中…'
+        renderInIframe(htmlCode)
 
-            renderInIframe(htmlCode)
+        document.getElementById('outputCard').style.display = 'block'
+        document.getElementById('outputEmpty').style.display = 'none'
+        document.getElementById('outputCode').textContent = jsCode
+        document.getElementById('outputTitle').textContent = `✦ ${title}`
 
-            document.getElementById('outputCard').style.display = 'block'
-            document.getElementById('outputEmpty').style.display = 'none'
-            document.getElementById('outputCode').textContent = jsCode
-            document.getElementById('outputTitle').textContent = `✦ ${title}`
+        progressFill.style.width = '100%'
+        progressText.textContent = '✓ 生成完成！'
 
-            progressFill.style.width = '100%'
-            progressText.textContent = '✓ 生成完成！'
+        setTimeout(() => {
+          document.getElementById('aiLoadingMask').style.display = 'none'
+          btn.classList.remove('loading')
+          spinner.style.display = 'none'
+          btnText.textContent = '✦ 重新生成'
+          progressWrap.style.display = 'none'
+          progressFill.style.width = '0%'
+        }, 600)
 
-            setTimeout(() => {
-              document.getElementById('aiLoadingMask').style.display = 'none'
-              btn.classList.remove('loading')
-              spinner.style.display = 'none'
-              btnText.textContent = '✦ 重新生成'
-              progressWrap.style.display = 'none'
-              progressFill.style.width = '0%'
-            }, 600)
-
-            addHistory(desc.slice(0, 12), '__AI__', htmlCode)
-            currentKey = '__AI__'
-
-          } else if(evt.type === 'done'){
-            // 兼容旧协议
-            if(fullCode){
-              const htmlCode = extractHTML(fullCode)
-              if(htmlCode){
-                renderInIframe(htmlCode)
-                document.getElementById('outputCard').style.display = 'block'
-                document.getElementById('outputEmpty').style.display = 'none'
-                document.getElementById('outputCode').textContent = htmlCode
-                document.getElementById('outputTitle').textContent = '✦ AI 生成 HTML 动效'
-                progressFill.style.width = '100%'
-                progressText.textContent = '✓ 生成完成！'
-                setTimeout(() => {
-                  document.getElementById('aiLoadingMask').style.display = 'none'
-                  btn.classList.remove('loading')
-                  spinner.style.display = 'none'
-                  btnText.textContent = '✦ 重新生成'
-                  progressWrap.style.display = 'none'
-                  progressFill.style.width = '0%'
-                }, 600)
-                addHistory(desc.slice(0, 12), '__AI__', htmlCode)
-                currentKey = '__AI__'
-              }
-            }
-            break
-
-          } else if(evt.type === 'chunk' && evt.text){
-            // 兼容旧协议流式输出
-            fullCode += evt.text
-            charCount += evt.text.length
-            if(charCount % 200 < evt.text.length){
-              const pct = Math.min(30 + Math.floor(charCount / 50), 88)
-              progressFill.style.width = pct + '%'
-              const lastLine = fullCode.split('\n').filter(l => l.trim()).slice(-1)[0] || ''
-              document.getElementById('aiStreamPreview').textContent = lastLine.slice(0, 60)
-            }
-
-          } else if(evt.type === 'error'){
-            const raw = evt.message || 'AI 生成失败'
-            let friendly = raw
-            if(raw.includes('429') || raw.includes('频率限制')){
-              friendly = 'AI 请求过于频繁，请稍等片刻后重试'
-            } else if(raw.includes('ssoid') || raw.includes('登录态') || raw.includes('过期')){
-              friendly = 'CatDesk 登录态已过期，请重启 CatDesk 后重试'
-            } else if(raw.includes('503') || raw.includes('not found')){
-              friendly = 'AI 引擎暂时不可用，请检查 CatDesk 是否正在运行'
-            } else if(raw.includes('timeout') || raw.includes('超时')){
-              friendly = '请求超时，请检查网络后重试'
-            }
-            throw new Error(friendly)
-          }
-        } catch(e){
-          if(e.message && !e.message.includes('JSON')) throw e
-          /* 忽略 JSON 解析错误 */
-        }
+        addHistory(desc.slice(0, 12), '__AI__', htmlCode)
+        currentKey = '__AI__'
+        break
       }
     }
+    if(Date.now() >= deadline) throw new Error('请求超时（5分钟），请重试')
 
   } catch(err){
     console.error('[AI Generate]', err)

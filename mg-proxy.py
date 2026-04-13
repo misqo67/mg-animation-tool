@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
 """
-MG Tool AI Proxy - 本地代理服务 v6
+MG Tool AI Proxy - 本地代理服务 v7
 架构：mg-tool.html → mg-proxy.py(7788) → 写任务队列文件
       → mg-worker.py 轮询任务队列 → catpaw-cli 生成代码 → 写结果文件
-      → 代理轮询结果文件 → SSE 回传网页
+      → 前端 GET /result/<id> 轮询结果
 
-v6 新增：
-- 监听 0.0.0.0（支持 Cloudflare Tunnel 公网访问）
-- GET / 直接 serve mg-tool.html（无需单独文件服务器）
+v7 变更：
+- 改为轮询模式（POST /generate 返回 task_id，GET /result/<id> 查询结果）
+- 解决 Cloudflare Tunnel 对 SSE 流式响应的缓冲问题
 """
 
 import json
@@ -29,6 +29,16 @@ class ProxyHandler(BaseHTTPRequestHandler):
     def log_message(self, fmt, *args):
         print(f"[Proxy] {fmt % args}")
 
+    def send_json(self, code, obj):
+        body = json.dumps(obj, ensure_ascii=False).encode()
+        self.send_response(code)
+        self.send_header('Content-Type', 'application/json; charset=utf-8')
+        self.send_header('Content-Length', str(len(body)))
+        self.send_header('Access-Control-Allow-Origin', '*')
+        self.send_header('Cache-Control', 'no-cache')
+        self.end_headers()
+        self.wfile.write(body)
+
     def do_OPTIONS(self):
         self.send_response(200)
         self.send_header('Access-Control-Allow-Origin', '*')
@@ -38,21 +48,40 @@ class ProxyHandler(BaseHTTPRequestHandler):
 
     def do_GET(self):
         if self.path == '/health':
-            body = json.dumps({
+            self.send_json(200, {
                 "status": "ok",
                 "catpaw_port": 1,
                 "port_status": "ok",
                 "proxy_port": PROXY_PORT,
-                "mode": "queue-file"
-            }).encode()
-            self.send_response(200)
-            self.send_header('Content-Type', 'application/json')
-            self.send_header('Access-Control-Allow-Origin', '*')
-            self.end_headers()
-            self.wfile.write(body)
+                "mode": "poll"
+            })
+
+        elif self.path.startswith('/result/'):
+            task_id = self.path[len('/result/'):]
+            result_file = os.path.join(RESULT_DIR, f"result-{task_id}.json")
+            task_file = os.path.join(TASK_DIR, f"task-{task_id}.json")
+
+            if os.path.exists(result_file):
+                try:
+                    with open(result_file, 'r', encoding='utf-8') as f:
+                        content = f.read().strip()
+                    if content:
+                        data = json.loads(content)
+                        os.remove(result_file)
+                        if data.get('error'):
+                            self.send_json(200, {"status": "error", "message": data['error']})
+                        else:
+                            self.send_json(200, {"status": "done", "data": data})
+                        return
+                except Exception as e:
+                    self.send_json(200, {"status": "pending"})
+                    return
+            elif os.path.exists(task_file):
+                self.send_json(200, {"status": "pending"})
+            else:
+                self.send_json(404, {"status": "not_found"})
 
         elif self.path in ('/', '/index.html', '/mg-tool.html'):
-            # 直接 serve HTML 文件
             try:
                 with open(HTML_FILE, 'rb') as f:
                     content = f.read()
@@ -65,7 +94,6 @@ class ProxyHandler(BaseHTTPRequestHandler):
                 self.send_response(404)
                 self.end_headers()
                 self.wfile.write(b'mg-tool.html not found')
-
         else:
             self.send_response(404)
             self.end_headers()
@@ -81,39 +109,18 @@ class ProxyHandler(BaseHTTPRequestHandler):
         try:
             req_data = json.loads(body)
         except Exception:
-            self.send_response(400)
-            self.end_headers()
+            self.send_json(400, {"error": "invalid json"})
             return
 
         user_prompt = req_data.get('prompt', '').strip()
         if not user_prompt:
-            self.send_response(400)
-            self.end_headers()
+            self.send_json(400, {"error": "prompt required"})
             return
 
-        # SSE 响应头
-        self.send_response(200)
-        self.send_header('Content-Type', 'text/event-stream; charset=utf-8')
-        self.send_header('Cache-Control', 'no-cache')
-        self.send_header('Access-Control-Allow-Origin', '*')
-        self.send_header('X-Accel-Buffering', 'no')
-        self.end_headers()
-
-        def sse(obj):
-            try:
-                self.wfile.write(
-                    f"data: {json.dumps(obj, ensure_ascii=False)}\n\n".encode()
-                )
-                self.wfile.flush()
-            except Exception:
-                pass
-
-        # 生成唯一任务 ID
         task_id = str(uuid.uuid4())[:8]
         task_file = os.path.join(TASK_DIR, f"task-{task_id}.json")
         result_file = os.path.join(RESULT_DIR, f"result-{task_id}.json")
 
-        # 写任务队列文件
         with open(task_file, 'w', encoding='utf-8') as f:
             json.dump({
                 "task_id": task_id,
@@ -122,57 +129,14 @@ class ProxyHandler(BaseHTTPRequestHandler):
                 "created_at": time.time()
             }, f, ensure_ascii=False)
 
-        print(f"[Proxy] Task {task_id} written: {task_file}")
-        sse({"type": "status", "message": "任务已提交，AI 正在生成动效代码..."})
-
-        # 轮询结果文件（最多等 5 分钟）
-        deadline = time.time() + 300
-        heartbeat_counter = 0
-
-        while time.time() < deadline:
-            if os.path.exists(result_file):
-                try:
-                    with open(result_file, 'r', encoding='utf-8') as f:
-                        content = f.read().strip()
-                    if content:
-                        try:
-                            data = json.loads(content)
-                            if data.get('error'):
-                                sse({"type": "error", "message": data['error']})
-                            else:
-                                print(f"[Proxy] Got result for task {task_id}")
-                                sse({"type": "result", "data": data})
-                                sse({"type": "done"})
-                            os.remove(result_file)
-                            return
-                        except json.JSONDecodeError:
-                            time.sleep(0.3)
-                            continue
-                except Exception as e:
-                    print(f"[Proxy] Read error: {e}")
-
-            heartbeat_counter += 1
-            if heartbeat_counter % 5 == 0:
-                sse({"type": "heartbeat"})
-
-            time.sleep(2)
-
-        # 超时
-        sse({"type": "error", "message": "生成超时（5分钟），请重试"})
-        for fp in [task_file, result_file]:
-            if os.path.exists(fp):
-                try:
-                    os.remove(fp)
-                except Exception:
-                    pass
+        print(f"[Proxy] Task {task_id} created")
+        self.send_json(200, {"task_id": task_id, "status": "queued"})
 
 
 def run():
     server = HTTPServer(('0.0.0.0', PROXY_PORT), ProxyHandler)
-    print(f"[Proxy] v6 Running on http://0.0.0.0:{PROXY_PORT}")
-    print(f"[Proxy] HTML: {HTML_FILE}")
-    print(f"[Proxy] Task dir:   {TASK_DIR}")
-    print(f"[Proxy] Result dir: {RESULT_DIR}")
+    print(f"[Proxy] v7 Running on http://0.0.0.0:{PROXY_PORT}")
+    print(f"[Proxy] Mode: poll (POST /generate → GET /result/<id>)")
     server.serve_forever()
 
 
