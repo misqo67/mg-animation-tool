@@ -218,6 +218,7 @@ def process_task(task_file: str):
 
     user_prompt = task.get("prompt", "").strip()
     result_file = task.get("result_file", f"{RESULT_DIR}/result-{task_id}.json")
+    image_base64 = task.get("imageBase64", None)
 
     # 删除任务文件，防止重复领取
     try:
@@ -232,7 +233,32 @@ def process_task(task_file: str):
         return
 
     prompt_content = build_prompt(user_prompt)
-    prompt_data = {"content": [{"type": "text", "text": prompt_content}]}
+
+    # 构建多模态 prompt_data：有图片时加入 image 类型
+    if image_base64:
+        # 提取 base64 数据（去掉 data:image/xxx;base64, 前缀）
+        if ',' in image_base64:
+            mime_part, b64_data = image_base64.split(',', 1)
+            media_type = mime_part.split(':')[1].split(';')[0] if ':' in mime_part else 'image/png'
+        else:
+            b64_data = image_base64
+            media_type = 'image/png'
+        prompt_data = {
+            "content": [
+                {
+                    "type": "image",
+                    "source": {
+                        "type": "base64",
+                        "media_type": media_type,
+                        "data": b64_data
+                    }
+                },
+                {"type": "text", "text": prompt_content}
+            ]
+        }
+        print(f"[Worker] Task {task_id} has image ({media_type}), using multimodal input")
+    else:
+        prompt_data = {"content": [{"type": "text", "text": prompt_content}]}
 
     with tempfile.NamedTemporaryFile(
         mode="w", suffix=".json", delete=False, encoding="utf-8"

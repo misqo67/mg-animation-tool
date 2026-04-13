@@ -117,17 +117,23 @@ class ProxyHandler(BaseHTTPRequestHandler):
             self.send_json(400, {"error": "prompt required"})
             return
 
+        image_base64 = req_data.get('imageBase64', None)
+
         task_id = str(uuid.uuid4())[:8]
         task_file = os.path.join(TASK_DIR, f"task-{task_id}.json")
         result_file = os.path.join(RESULT_DIR, f"result-{task_id}.json")
 
+        task_data = {
+            "task_id": task_id,
+            "prompt": user_prompt,
+            "result_file": result_file,
+            "created_at": time.time()
+        }
+        if image_base64:
+            task_data["imageBase64"] = image_base64
+
         with open(task_file, 'w', encoding='utf-8') as f:
-            json.dump({
-                "task_id": task_id,
-                "prompt": user_prompt,
-                "result_file": result_file,
-                "created_at": time.time()
-            }, f, ensure_ascii=False)
+            json.dump(task_data, f, ensure_ascii=False)
 
         print(f"[Proxy] Task {task_id} created")
         self.send_json(200, {"task_id": task_id, "status": "queued"})

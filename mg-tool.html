@@ -2303,10 +2303,10 @@ async function triggerGenerate(){
   document.getElementById('aiStreamPreview').textContent = ''
   document.getElementById('aiLoadingText').textContent = 'AI 正在生成动效…'
 
-  // 构建完整 prompt（包含系统提示 + 用户描述 + 可选图片）
+  // 构建完整 prompt（系统提示 + 用户描述，图片单独传递供多模态分析）
   let fullPrompt = AI_SYSTEM_PROMPT + '\n\n---\n\n用户需求：' + desc
   if(uploadedImageSrc){
-    fullPrompt += `\n\n我上传了一张图片作为动效主体（base64如下，请在HTML中用 <img> 标签引用它）。\n图片base64：${uploadedImageSrc}`
+    fullPrompt += `\n\n用户上传了一张静态设计稿作为参考（见附图）。请仔细分析图片中的视觉元素（形状、颜色、图标、文字等），基于这些元素的风格和内容来设计动效。不要把图片当底图，而是提取其中的核心元素用代码重新绘制并做成动画。`
   }
 
   let fullCode = ''
@@ -2317,10 +2317,13 @@ async function triggerGenerate(){
     progressText.textContent = '发送请求…'
 
     // ── 轮询模式（兼容 Cloudflare Tunnel，避免 SSE 缓冲问题）──
+    const requestBody = { prompt: fullPrompt }
+    if(uploadedImageSrc) requestBody.imageBase64 = uploadedImageSrc
+
     const resp = await fetch(`${PROXY_URL}/generate`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ prompt: fullPrompt })
+      body: JSON.stringify(requestBody)
     })
 
     if(!resp.ok){
