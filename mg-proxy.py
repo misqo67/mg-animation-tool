@@ -140,6 +140,7 @@ class ProxyHandler(BaseHTTPRequestHandler):
 
 
 def run():
+    HTTPServer.allow_reuse_address = True
     server = HTTPServer(('0.0.0.0', PROXY_PORT), ProxyHandler)
     print(f"[Proxy] v7 Running on http://0.0.0.0:{PROXY_PORT}")
     print(f"[Proxy] Mode: poll (POST /generate → GET /result/<id>)")
