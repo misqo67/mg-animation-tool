@@ -60,23 +60,29 @@ class ProxyHandler(BaseHTTPRequestHandler):
             task_id = self.path[len('/result/'):]
             result_file = os.path.join(RESULT_DIR, f"result-{task_id}.json")
             task_file = os.path.join(TASK_DIR, f"task-{task_id}.json")
+            lock_file = os.path.join("/tmp/mg-tool-locks", f"{task_id}.lock")
 
             if os.path.exists(result_file):
                 try:
                     with open(result_file, 'r', encoding='utf-8') as f:
                         content = f.read().strip()
-                    if content:
-                        data = json.loads(content)
-                        os.remove(result_file)
-                        if data.get('error'):
-                            self.send_json(200, {"status": "error", "message": data['error']})
-                        else:
-                            self.send_json(200, {"status": "done", "data": data})
+                    if not content:
+                        # 文件存在但为空，worker 正在写入，继续等待
+                        self.send_json(200, {"status": "pending"})
                         return
+                    data = json.loads(content)
+                    os.remove(result_file)
+                    if data.get('error'):
+                        self.send_json(200, {"status": "error", "message": data['error']})
+                    else:
+                        self.send_json(200, {"status": "done", "data": data})
+                    return
                 except Exception as e:
+                    # JSON 解析失败，文件可能还在写入
                     self.send_json(200, {"status": "pending"})
                     return
-            elif os.path.exists(task_file):
+            elif os.path.exists(task_file) or os.path.exists(lock_file):
+                # 任务文件存在（等待处理）或 lock 文件存在（处理中）
                 self.send_json(200, {"status": "pending"})
             else:
                 self.send_json(404, {"status": "not_found"})

@@ -2368,7 +2368,7 @@ async function triggerGenerate(){
       if(!pollResp.ok) continue
       const pollData = await pollResp.json()
 
-      if(pollData.status === 'pending') continue
+      if(pollData.status === 'pending' || pollData.status === 'not_found') continue
 
       if(pollData.status === 'error'){
         const raw = pollData.message || 'AI 生成失败'
